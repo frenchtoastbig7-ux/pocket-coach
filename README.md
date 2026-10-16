@@ -12,7 +12,8 @@ Material You. Everything lives on the phone.
   follow it from a chosen Monday.
 - **Workout** – the logging screen. Targets on the left (percentages already turned into kilos or pounds from your
   current 1RM, rounded to your plate step), load / reps / RPE inputs, a tick per set, a rest timer with a beep, and a
-  finish summary. Ticking an untouched set logs the prescription as performed.
+  finish summary. Each exercise shows what you did last time, and those numbers sit in the load and reps fields as
+  placeholders, so ticking an untouched set logs the prescription, or failing that last time's numbers, as performed.
 - **Library** – ~90 built-in exercises by category and equipment, plus your own. Each has a one-rep max you can
   enter or let the app estimate (Epley) from what you lift, an e1RM chart and a full set history.
 - **Progress** – totals, a 12-week tonnage / sets / days chart, records per exercise and the workout history.

@@ -41,6 +41,7 @@ import com.sovereignedge.pocketcoach.data.LoadKind
 import com.sovereignedge.pocketcoach.data.Max
 import com.sovereignedge.pocketcoach.data.SetRecord
 import com.sovereignedge.pocketcoach.data.Strength
+import com.sovereignedge.pocketcoach.data.WorkoutSet
 import com.sovereignedge.pocketcoach.ui.Nav
 import com.sovereignedge.pocketcoach.ui.Route
 import com.sovereignedge.pocketcoach.ui.common.AppIconButton
@@ -176,8 +177,9 @@ fun ExerciseDetailScreen(app: CoachApp, exerciseId: Long, nav: Nav) {
 }
 
 /** "5 × 100", "12", "45s", "40 m (+20)". */
-fun describeSet(r: SetRecord, kind: LoadKind, unit: String): String {
-    val s = r.set
+fun describeSet(r: SetRecord, kind: LoadKind, unit: String): String = describeSet(r.set, kind, unit)
+
+fun describeSet(s: WorkoutSet, kind: LoadKind, unit: String): String {
     return when (kind) {
         LoadKind.TIME -> Strength.fmtSeconds(s.seconds) + (s.load?.let { " @ ${Strength.fmtLoad(it, unit)}" } ?: "")
         LoadKind.DISTANCE -> Strength.fmtDistance(s.distance) + (s.load?.let { " @ ${Strength.fmtLoad(it, unit)}" } ?: "")

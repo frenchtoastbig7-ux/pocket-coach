@@ -569,6 +569,23 @@ class Repo(context: Context, dbName: String = "coach.db") {
         }
     }
 
+    class LastPerformance(val workoutId: Long, val date: LocalDate, val sets: List<WorkoutSet>)
+
+    /** The completed sets of [exerciseId] from the most recent workout other than [excludeWorkoutId], for "last time" hints. */
+    fun lastPerformance(exerciseId: Long, excludeWorkoutId: Long): Flow<LastPerformance?> = watch(T_SETS, T_WO, T_WE) { d ->
+        val head = d.rawQuery(
+            """SELECT w.id, w.date FROM workouts w JOIN workout_exercises we ON we.workout_id=w.id JOIN sets s ON s.we_id=we.id
+               WHERE we.exercise_id=? AND w.id<>? AND s.completed=1 ORDER BY w.date DESC, w.started_at DESC LIMIT 1""",
+            arrayOf(exerciseId.toString(), excludeWorkoutId.toString())
+        ).use { if (it.moveToFirst()) it.getLong(0) to LocalDate.ofEpochDay(it.getLong(1)) else null } ?: return@watch null
+        val sets = d.rawQuery(
+            """SELECT s.* FROM sets s JOIN workout_exercises we ON we.id=s.we_id
+               WHERE we.workout_id=? AND we.exercise_id=? AND s.completed=1 ORDER BY we.sort, s.idx""",
+            arrayOf(head.first.toString(), exerciseId.toString())
+        ).mapAll(::setOf)
+        LastPerformance(head.first, head.second, sets)
+    }
+
     /** Every exercise that has a max or a completed set, with its bests. */
     fun personalRecords(): Flow<List<PersonalRecord>> = watch(T_SETS, T_MAX, T_EX) { d ->
         val exercises = queryExercises(d, null, null).associateBy { it.id }

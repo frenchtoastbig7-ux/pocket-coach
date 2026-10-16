@@ -64,7 +64,9 @@ import com.sovereignedge.pocketcoach.ui.common.ConfirmDialog
 import com.sovereignedge.pocketcoach.ui.common.ExercisePickerSheet
 import com.sovereignedge.pocketcoach.ui.common.TextPromptDialog
 import com.sovereignedge.pocketcoach.ui.common.fmtDate
+import com.sovereignedge.pocketcoach.ui.common.fmtDateShort
 import com.sovereignedge.pocketcoach.ui.common.fmtDuration
+import com.sovereignedge.pocketcoach.ui.library.describeSet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -226,6 +228,8 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
     var editNotes by remember { mutableStateOf(false) }
     var editRest by remember { mutableStateOf(false) }
     val kind = ex.exercise.loadKind
+    val last by remember(ex.exercise.id, ex.entry.workoutId) { app.repo.lastPerformance(ex.exercise.id, ex.entry.workoutId) }.collectAsStateWithLifecycle(null)
+    val lastSets = last?.sets ?: emptyList()
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(Modifier.padding(vertical = 8.dp)) {
             Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -233,6 +237,13 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                     Text((if (ex.entry.blockLabel.isNotBlank()) "${ex.entry.blockLabel}  " else "") + ex.exercise.name, style = MaterialTheme.typography.titleMedium)
                     val sub = listOfNotNull(ex.entry.restSec.takeIf { it > 0 }?.let { "rest ${Strength.fmtSeconds(it)}" }, ex.entry.notes.takeIf { it.isNotBlank() })
                     if (sub.isNotEmpty()) Text(sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    last?.let { l ->
+                        Text(
+                            "Last time · ${fmtDateShort(l.date)}: " + l.sets.joinToString(", ") { describeSet(it, kind, unit) },
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
                 if (!readOnly && ex.entry.restSec > 0) AppIconButton(R.drawable.ic_timer, "Start rest timer") { onRest(ex.entry.restSec) }
                 AppIconButton(R.drawable.ic_more, "Exercise actions") { menu = true }
@@ -256,7 +267,11 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                 Spacer(Modifier.width(44.dp))
             }
             ex.sets.forEach { s ->
-                SetRow(s, kind, unit, readOnly,
+                // Same set number last time (if it carried a load), else the last loaded set, else the last set: shown as a
+                // placeholder and logged when an empty set is ticked.
+                val suggestion = lastSets.getOrNull(s.index)?.takeIf { it.load != null || kind != LoadKind.WEIGHT }
+                    ?: lastSets.lastOrNull { it.load != null } ?: lastSets.lastOrNull()
+                SetRow(s, kind, unit, readOnly, suggestion,
                     onUpdate = { scope.launch { app.repo.updateSet(it) } },
                     onCompleted = { if (ex.entry.restSec > 0) onRest(ex.entry.restSec) },
                     onDelete = { scope.launch { app.repo.deleteSet(s.id) } })
@@ -272,7 +287,7 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
 
 /** One logged set: target on the left, editable load / reps (or time / distance) / RPE, and a done checkbox. */
 @Composable
-private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolean, onUpdate: (WorkoutSet) -> Unit, onCompleted: () -> Unit, onDelete: () -> Unit) {
+private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolean, suggestion: WorkoutSet?, onUpdate: (WorkoutSet) -> Unit, onCompleted: () -> Unit, onDelete: () -> Unit) {
     var loadText by remember(s.id) { mutableStateOf(Strength.fmtLoad(s.load, unit)) }
     var primaryText by remember(s.id) { mutableStateOf(primaryOf(s, kind)) }
     var rpeText by remember(s.id) { mutableStateOf(s.rpe?.let(Strength::fmtNum) ?: "") }
@@ -298,9 +313,17 @@ private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolea
     Row(Modifier.fillMaxWidth().background(bg).padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("${s.index + 1}", Modifier.width(32.dp))
         Text(target.ifBlank { "—" }, Modifier.weight(1.2f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        CompactField(loadText, Modifier.weight(1f), readOnly, KeyboardType.Decimal) { loadText = it; onUpdate(s.copy(load = Strength.parseLoad(it, unit))) }
+        // What a tick would log: typed value, else the prescription, else last time.
+        val fillLoad = s.targetLoad ?: suggestion?.load
+        val fillPrimary: Any? = when (kind) {
+            LoadKind.TIME -> s.targetSeconds ?: suggestion?.seconds
+            LoadKind.DISTANCE -> s.targetDistance ?: suggestion?.distance
+            else -> Strength.firstReps(s.targetReps) ?: suggestion?.reps
+        }
+        CompactField(loadText, Modifier.weight(1f), readOnly, KeyboardType.Decimal, hint = if (s.completed) "" else Strength.fmtLoad(fillLoad, unit)) { loadText = it; onUpdate(s.copy(load = Strength.parseLoad(it, unit))) }
         Spacer(Modifier.width(4.dp))
-        CompactField(primaryText, Modifier.weight(1f), readOnly, if (kind == LoadKind.TIME) KeyboardType.Text else KeyboardType.Number) { t ->
+        val primaryHint = when (val v = fillPrimary) { null -> ""; is Int -> if (kind == LoadKind.TIME) Strength.fmtSeconds(v) else v.toString(); is Double -> Strength.fmtNum(v); else -> "" }
+        CompactField(primaryText, Modifier.weight(1f), readOnly, if (kind == LoadKind.TIME) KeyboardType.Text else KeyboardType.Number, hint = if (s.completed) "" else primaryHint) { t ->
             primaryText = t
             onUpdate(when (kind) {
                 LoadKind.TIME -> s.copy(seconds = Strength.parseSeconds(t))
@@ -317,10 +340,10 @@ private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolea
                     // Ticking an untouched set logs the prescription as performed.
                     val filled = s.copy(
                         completed = true,
-                        load = s.load ?: s.targetLoad,
-                        reps = s.reps ?: if (kind == LoadKind.TIME || kind == LoadKind.DISTANCE) null else Strength.firstReps(s.targetReps),
-                        seconds = s.seconds ?: s.targetSeconds,
-                        distance = s.distance ?: s.targetDistance,
+                        load = s.load ?: fillLoad,
+                        reps = s.reps ?: if (kind == LoadKind.TIME || kind == LoadKind.DISTANCE) null else fillPrimary as? Int,
+                        seconds = s.seconds ?: if (kind == LoadKind.TIME) fillPrimary as? Int else null,
+                        distance = s.distance ?: if (kind == LoadKind.DISTANCE) fillPrimary as? Double else null,
                     )
                     onUpdate(filled)
                     onCompleted()
@@ -331,11 +354,15 @@ private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolea
 }
 
 @Composable
-private fun CompactField(value: String, modifier: Modifier, readOnly: Boolean, keyboard: KeyboardType, onChange: (String) -> Unit) {
+private fun CompactField(value: String, modifier: Modifier, readOnly: Boolean, keyboard: KeyboardType, hint: String = "", onChange: (String) -> Unit) {
     OutlinedTextField(
         value = value, onValueChange = onChange, singleLine = true, readOnly = readOnly, modifier = modifier,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+        placeholder = if (hint.isEmpty()) null else ({
+            Text(hint, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        }),
     )
 }
 
