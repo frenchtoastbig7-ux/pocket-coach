@@ -82,6 +82,8 @@ object ProgramJson {
                         put("category", i.exercise.category)
                         put("equipment", i.exercise.equipment)
                         put("loadKind", i.exercise.loadKind.name.lowercase())
+                        if (i.exercise.description.isNotBlank()) put("description", i.exercise.description)
+                        if (i.exercise.videoUrl.isNotBlank()) put("video", i.exercise.videoUrl)
                     })
                     io.put("restSec", i.item.restSec)
                     io.put("notes", i.item.notes)
@@ -99,7 +101,7 @@ object ProgramJson {
         return root.toString(2)
     }
 
-    class ParsedExercise(val name: String, val category: String, val equipment: String, val loadKind: LoadKind)
+    class ParsedExercise(val name: String, val category: String, val equipment: String, val loadKind: LoadKind, val description: String = "", val videoUrl: String = "")
     class ParsedItem(val exercise: ParsedExercise, val restSec: Int, val notes: String, val sets: List<SetRx>)
     class ParsedBlock(val label: String, val notes: String, val items: List<ParsedItem>)
     class ParsedSession(val week: Int, val day: Int, val title: String, val notes: String, val blocks: List<ParsedBlock>)
@@ -134,6 +136,8 @@ object ProgramJson {
                         category = eo.optString("category", "Accessory"),
                         equipment = eo.optString("equipment", "Other"),
                         loadKind = LoadKind.parse(eo.optString("loadKind", "weight")),
+                        description = eo.optString("description", ""),
+                        videoUrl = eo.optString("video", ""),
                     )
                     items += ParsedItem(ex, io.optInt("restSec", 0), io.optString("notes", ""), SetRxCodec.fromArray(io.optJSONArray("sets") ?: JSONArray()))
                 }

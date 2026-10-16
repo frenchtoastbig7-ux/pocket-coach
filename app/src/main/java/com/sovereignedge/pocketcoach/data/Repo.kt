@@ -65,16 +65,26 @@ class Repo(context: Context, dbName: String = "coach.db") {
         loadKind = LoadKind.parse(c.getString(c.getColumnIndexOrThrow("load_kind"))),
         notes = c.getString(c.getColumnIndexOrThrow("notes")),
         builtin = c.getInt(c.getColumnIndexOrThrow("builtin")) == 1,
+        description = c.getString(c.getColumnIndexOrThrow("description")),
+        videoUrl = c.getString(c.getColumnIndexOrThrow("video_url")),
     )
 
     suspend fun findExercise(name: String): Exercise? = read { d -> queryExercises(d, "name=? COLLATE NOCASE", arrayOf(name.trim())).firstOrNull() }
 
     /** Adds an exercise, or returns the existing one with the same name. */
-    suspend fun addExercise(name: String, category: String, equipment: String, loadKind: LoadKind, notes: String = ""): Long =
-        write(T_EX) { d -> insertExercise(d, name, category, equipment, loadKind, notes) }
+    suspend fun addExercise(name: String, category: String, equipment: String, loadKind: LoadKind, notes: String = "", description: String = "", videoUrl: String = ""): Long =
+        write(T_EX) { d -> insertExercise(d, name, category, equipment, loadKind, notes, description, videoUrl) }
 
-    private fun insertExercise(d: SQLiteDatabase, name: String, category: String, equipment: String, loadKind: LoadKind, notes: String): Long {
-        d.rawQuery("SELECT id FROM exercises WHERE name=? COLLATE NOCASE", arrayOf(name.trim())).use { if (it.moveToFirst()) return it.getLong(0) }
+    /** Inserts, or returns the existing exercise with that name, filling in a missing description / video from the arguments. */
+    private fun insertExercise(d: SQLiteDatabase, name: String, category: String, equipment: String, loadKind: LoadKind, notes: String, description: String = "", videoUrl: String = ""): Long {
+        d.rawQuery("SELECT id FROM exercises WHERE name=? COLLATE NOCASE", arrayOf(name.trim())).use {
+            if (it.moveToFirst()) {
+                val id = it.getLong(0)
+                if (description.isNotBlank()) d.execSQL("UPDATE exercises SET description=? WHERE id=? AND description=''", arrayOf<Any>(description, id))
+                if (videoUrl.isNotBlank()) d.execSQL("UPDATE exercises SET video_url=? WHERE id=? AND video_url=''", arrayOf<Any>(videoUrl, id))
+                return id
+            }
+        }
         return d.insertOrThrow("exercises", null, ContentValues().apply {
             put("uuid", UUID.randomUUID().toString())
             put("name", name.trim())
@@ -84,6 +94,8 @@ class Repo(context: Context, dbName: String = "coach.db") {
             put("notes", notes)
             put("builtin", 0)
             put("created_at", System.currentTimeMillis())
+            put("description", description.ifBlank { ExerciseGuide.DESCRIPTIONS[name.trim()] ?: "" })
+            put("video_url", videoUrl)
         })
     }
 
@@ -91,6 +103,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         d.update("exercises", ContentValues().apply {
             put("name", e.name.trim()); put("category", e.category); put("equipment", e.equipment)
             put("load_kind", e.loadKind.name); put("notes", e.notes)
+            put("description", e.description.trim()); put("video_url", e.videoUrl.trim())
         }, "id=?", arrayOf(e.id.toString()))
     }
 
@@ -218,13 +231,13 @@ class Repo(context: Context, dbName: String = "coach.db") {
         val details = blocks.map { b ->
             val items = d.rawQuery(
                 """SELECT i.id, i.block_id, i.exercise_id, i.sort, i.sets_json, i.rest_sec, i.notes,
-                          e.id, e.uuid, e.name, e.category, e.equipment, e.load_kind, e.notes, e.builtin
+                          e.id, e.uuid, e.name, e.category, e.equipment, e.load_kind, e.notes, e.builtin, e.description, e.video_url
                    FROM items i JOIN exercises e ON e.id=i.exercise_id WHERE i.block_id=? ORDER BY i.sort, i.id""",
                 arrayOf(b.id.toString())
             ).mapAll { c ->
                 ItemWithExercise(
                     Item(c.getLong(0), c.getLong(1), c.getLong(2), c.getInt(3), SetRxCodec.fromJson(c.getString(4)), c.getInt(5), c.getString(6)),
-                    Exercise(c.getLong(7), c.getString(8), c.getString(9), c.getString(10), c.getString(11), LoadKind.parse(c.getString(12)), c.getString(13), c.getInt(14) == 1),
+                    Exercise(c.getLong(7), c.getString(8), c.getString(9), c.getString(10), c.getString(11), LoadKind.parse(c.getString(12)), c.getString(13), c.getInt(14) == 1, c.getString(15), c.getString(16)),
                 )
             }
             BlockDetail(b, items)
@@ -382,12 +395,12 @@ class Repo(context: Context, dbName: String = "coach.db") {
         val w = d.query("workouts", null, "id=?", arrayOf(id.toString()), null, null, null).mapAll(::workoutOf).firstOrNull() ?: return null
         val entries = d.rawQuery(
             """SELECT we.id, we.workout_id, we.exercise_id, we.block_label, we.sort, we.rest_sec, we.notes,
-                      e.id, e.uuid, e.name, e.category, e.equipment, e.load_kind, e.notes, e.builtin
+                      e.id, e.uuid, e.name, e.category, e.equipment, e.load_kind, e.notes, e.builtin, e.description, e.video_url
                FROM workout_exercises we JOIN exercises e ON e.id=we.exercise_id WHERE we.workout_id=? ORDER BY we.sort, we.id""",
             arrayOf(id.toString())
         ).mapAll { c ->
             WorkoutExercise(c.getLong(0), c.getLong(1), c.getLong(2), c.getString(3), c.getInt(4), c.getInt(5), c.getString(6)) to
-                Exercise(c.getLong(7), c.getString(8), c.getString(9), c.getString(10), c.getString(11), LoadKind.parse(c.getString(12)), c.getString(13), c.getInt(14) == 1)
+                Exercise(c.getLong(7), c.getString(8), c.getString(9), c.getString(10), c.getString(11), LoadKind.parse(c.getString(12)), c.getString(13), c.getInt(14) == 1, c.getString(15), c.getString(16))
         }
         return WorkoutDetail(w, entries.map { (we, e) -> WorkoutExerciseDetail(we, e, querySets(d, we.id)) })
     }
@@ -667,7 +680,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
                     put("session_id", sessionId); put("label", b.label); put("sort", bi); put("notes", b.notes)
                 })
                 b.items.forEachIndexed { ii, i ->
-                    val exId = insertExercise(d, i.exercise.name, i.exercise.category, i.exercise.equipment, i.exercise.loadKind, "")
+                    val exId = insertExercise(d, i.exercise.name, i.exercise.category, i.exercise.equipment, i.exercise.loadKind, "", i.exercise.description, i.exercise.videoUrl)
                     d.insertOrThrow("items", null, ContentValues().apply {
                         put("block_id", blockId); put("exercise_id", exId); put("sort", ii)
                         put("sets_json", SetRxCodec.toJson(i.sets)); put("rest_sec", i.restSec); put("notes", i.notes)

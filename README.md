@@ -14,8 +14,10 @@ Material You. Everything lives on the phone.
   current 1RM, rounded to your plate step), load / reps / RPE inputs, a tick per set, a rest timer with a beep, and a
   finish summary. Each exercise shows what you did last time, and those numbers sit in the load and reps fields as
   placeholders, so ticking an untouched set logs the prescription, or failing that last time's numbers, as performed.
-- **Library** – ~90 built-in exercises by category and equipment, plus your own. Each has a one-rep max you can
-  enter or let the app estimate (Epley) from what you lift, an e1RM chart and a full set history.
+- **Library** – ~95 built-in exercises by category and equipment, plus your own, each with a how-to description and
+  a demo video button (your own link, or a web video search opened in the browser; the app itself stays offline).
+  Tap an exercise during a workout to read it. Each also has a one-rep max you can enter or let the app estimate
+  (Epley) from what you lift, an e1RM chart and a full set history.
 - **Progress** – totals, a 12-week tonnage / sets / days chart, records per exercise and the workout history.
 - **Bring your own plan** – import a training plan from a spreadsheet: a `.csv` or `.xlsx` with one row per exercise
   (see the format below). Open the file from any app's share sheet, or Programs → import. The app can save a
@@ -66,6 +68,7 @@ One row per exercise. The first row names the columns; order doesn't matter and 
 | Load | `75%` (of 1RM), `RPE 8`, `100 kg`, `225 lb`, a bare number (your unit), `BW`, or blank. Lists work: `70%/75%/80%`. |
 | Rest | Seconds or m:ss. |
 | Notes | Coach cues. Optional extras: Category, Equipment, Type (weight / bodyweight / time / distance). |
+| Video, Description | Optional: a demo link and how-to text, stored on the exercise. |
 
 ```csv
 Week,Day,Session,Block,Exercise,Sets,Reps,Load,Rest,Notes

@@ -47,6 +47,7 @@ import com.sovereignedge.pocketcoach.ui.Route
 import com.sovereignedge.pocketcoach.ui.common.AppIconButton
 import com.sovereignedge.pocketcoach.ui.common.ConfirmDialog
 import com.sovereignedge.pocketcoach.ui.common.ExerciseEditorDialog
+import com.sovereignedge.pocketcoach.ui.common.HowToContent
 import com.sovereignedge.pocketcoach.ui.common.LineChart
 import com.sovereignedge.pocketcoach.ui.common.SectionHeader
 import com.sovereignedge.pocketcoach.ui.common.TextPromptDialog
@@ -98,7 +99,13 @@ fun ExerciseDetailScreen(app: CoachApp, exerciseId: Long, nav: Nav) {
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 32.dp)) {
             item {
                 Text("${e.category} · ${e.equipment} · ${e.loadKind.label}", Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (e.notes.isNotBlank()) Text(e.notes, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                Card(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("How to", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(6.dp))
+                        HowToContent(e, onEdit = { editing = true })
+                    }
+                }
             }
             if (e.loadKind == LoadKind.WEIGHT) {
                 item {
@@ -159,8 +166,8 @@ fun ExerciseDetailScreen(app: CoachApp, exerciseId: Long, nav: Nav) {
     }
 
     if (editing && e != null) {
-        ExerciseEditorDialog(initial = e, onDismiss = { editing = false }) { name, cat, eq, kind, notes ->
-            scope.launch { app.repo.updateExercise(e.copy(name = name, category = cat, equipment = eq, loadKind = kind, notes = notes)) }
+        ExerciseEditorDialog(initial = e, onDismiss = { editing = false }) { name, cat, eq, kind, notes, description, video ->
+            scope.launch { app.repo.updateExercise(e.copy(name = name, category = cat, equipment = eq, loadKind = kind, notes = notes, description = description, videoUrl = video)) }
         }
     }
     if (settingMax) {
@@ -180,10 +187,18 @@ fun ExerciseDetailScreen(app: CoachApp, exerciseId: Long, nav: Nav) {
 fun describeSet(r: SetRecord, kind: LoadKind, unit: String): String = describeSet(r.set, kind, unit)
 
 fun describeSet(s: WorkoutSet, kind: LoadKind, unit: String): String {
-    return when (kind) {
+    return when (effectiveKind(s, kind)) {
         LoadKind.TIME -> Strength.fmtSeconds(s.seconds) + (s.load?.let { " @ ${Strength.fmtLoad(it, unit)}" } ?: "")
         LoadKind.DISTANCE -> Strength.fmtDistance(s.distance) + (s.load?.let { " @ ${Strength.fmtLoad(it, unit)}" } ?: "")
         LoadKind.BODYWEIGHT -> "${s.reps ?: "–"}" + (s.load?.let { " (+${Strength.fmtLoad(it, unit)})" } ?: "")
         LoadKind.WEIGHT -> "${s.reps ?: "–"} × ${Strength.fmtLoad(s.load, unit).ifBlank { "–" }}"
     }
+}
+
+/** A set's own shape wins over the exercise's default: a timed "Run" row logs time even though Run is a distance exercise. */
+fun effectiveKind(s: WorkoutSet, exerciseKind: LoadKind): LoadKind = when {
+    s.targetSeconds != null || (s.targetDistance == null && s.targetReps.isBlank() && s.seconds != null) -> LoadKind.TIME
+    s.targetDistance != null || (s.targetReps.isBlank() && s.distance != null) -> LoadKind.DISTANCE
+    (exerciseKind == LoadKind.TIME || exerciseKind == LoadKind.DISTANCE) && s.targetReps.isNotBlank() -> LoadKind.WEIGHT
+    else -> exerciseKind
 }

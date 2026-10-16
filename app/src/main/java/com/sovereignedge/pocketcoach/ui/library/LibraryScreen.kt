@@ -82,8 +82,8 @@ fun LibraryScreen(app: CoachApp, modifier: Modifier, nav: Nav) {
         }
     }
     if (creating) {
-        ExerciseEditorDialog(initial = null, onDismiss = { creating = false }) { name, cat, eq, kind, notes ->
-            scope.launch { nav.push(Route.Exercise(app.repo.addExercise(name, cat, eq, kind, notes))) }
+        ExerciseEditorDialog(initial = null, onDismiss = { creating = false }) { name, cat, eq, kind, notes, description, video ->
+            scope.launch { nav.push(Route.Exercise(app.repo.addExercise(name, cat, eq, kind, notes, description, video))) }
         }
     }
 }

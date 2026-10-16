@@ -30,7 +30,9 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
                 load_kind TEXT NOT NULL DEFAULT 'WEIGHT',
                 notes TEXT NOT NULL DEFAULT '',
                 builtin INTEGER NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL)"""
+                created_at INTEGER NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                video_url TEXT NOT NULL DEFAULT '')"""
         )
         db.execSQL("CREATE UNIQUE INDEX exercises_name ON exercises(name COLLATE NOCASE)")
         db.execSQL(
@@ -140,12 +142,19 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // First schema version; migrations go here.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE exercises ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE exercises ADD COLUMN video_url TEXT NOT NULL DEFAULT ''")
+            seedExercises(db) // adds built-ins introduced since, and fills in descriptions
+        }
     }
 
+    /** Inserts missing built-in exercises and gives any exercise without a description the guide text, if there is one. */
     private fun seedExercises(db: SQLiteDatabase) {
         val now = System.currentTimeMillis()
         for ((name, category, equipment, kind) in BUILTIN_EXERCISES) {
+            val exists = db.rawQuery("SELECT 1 FROM exercises WHERE name=? COLLATE NOCASE", arrayOf(name)).use { it.moveToFirst() }
+            if (exists) continue
             db.insert("exercises", null, ContentValues().apply {
                 put("uuid", UUID.randomUUID().toString())
                 put("name", name)
@@ -154,7 +163,11 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
                 put("load_kind", kind.name)
                 put("builtin", 1)
                 put("created_at", now)
+                put("description", ExerciseGuide.DESCRIPTIONS[name] ?: "")
             })
+        }
+        for ((name, text) in ExerciseGuide.DESCRIPTIONS) {
+            db.execSQL("UPDATE exercises SET description=? WHERE name=? COLLATE NOCASE AND description=''", arrayOf(text, name))
         }
     }
 
@@ -224,7 +237,7 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
     }
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
 
         private val W = LoadKind.WEIGHT
         private val B = LoadKind.BODYWEIGHT
@@ -325,6 +338,9 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
             Quad("Couch Stretch", "Mobility", "Bodyweight", T),
             Quad("Hip 90/90", "Mobility", "Bodyweight", T),
             Quad("Thoracic Rotation", "Mobility", "Bodyweight", B),
+            Quad("Cable Fly", "Push", "Cable", W),
+            Quad("Overhead Triceps Extension", "Accessory", "Dumbbell", W),
+            Quad("Cycling", "Conditioning", "Machine", T),
         )
     }
 

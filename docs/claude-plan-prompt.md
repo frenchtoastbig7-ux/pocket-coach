@@ -42,6 +42,8 @@ OUTPUT FORMAT (strict)
     blank      when load is not meaningful (e.g. planks, sprints)
   Per-set loads use "/" like reps ("70%/75%/80%"). Never write anything else in this column.
 - Rest: seconds or m:ss ("90", "2:00").
+- Optional extra columns, only if asked for: "Video" (a demonstration link) and "Description" (one or two sentences on
+  technique). Add them after Notes.
 - Notes: short cue or instruction, or blank. No commas inside any cell; if you must, wrap the cell in double quotes.
 
 PROGRAMMING RULES

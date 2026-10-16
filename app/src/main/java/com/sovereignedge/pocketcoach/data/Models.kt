@@ -23,6 +23,10 @@ data class Exercise(
     val loadKind: LoadKind,
     val notes: String,
     val builtin: Boolean,
+    /** How to perform it: setup, execution, common faults. */
+    val description: String = "",
+    /** A demonstration video link; blank means "search the web". */
+    val videoUrl: String = "",
 ) {
     companion object {
         val CATEGORIES = listOf("Squat", "Hinge", "Push", "Pull", "Olympic", "Core", "Carry", "Conditioning", "Plyometric", "Accessory", "Mobility")

@@ -67,6 +67,9 @@ import com.sovereignedge.pocketcoach.ui.common.fmtDate
 import com.sovereignedge.pocketcoach.ui.common.fmtDateShort
 import com.sovereignedge.pocketcoach.ui.common.fmtDuration
 import com.sovereignedge.pocketcoach.ui.library.describeSet
+import com.sovereignedge.pocketcoach.ui.library.effectiveKind
+import com.sovereignedge.pocketcoach.ui.common.ExerciseEditorDialog
+import com.sovereignedge.pocketcoach.ui.common.ExerciseHowToSheet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -227,13 +230,16 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
     var menu by remember { mutableStateOf(false) }
     var editNotes by remember { mutableStateOf(false) }
     var editRest by remember { mutableStateOf(false) }
-    val kind = ex.exercise.loadKind
+    var howTo by remember { mutableStateOf(false) }
+    var editExercise by remember { mutableStateOf(false) }
+    // The exercise's default shape, unless its sets say otherwise (a timed row of a distance exercise).
+    val kind = ex.sets.firstOrNull()?.let { effectiveKind(it, ex.exercise.loadKind) } ?: ex.exercise.loadKind
     val last by remember(ex.exercise.id, ex.entry.workoutId) { app.repo.lastPerformance(ex.exercise.id, ex.entry.workoutId) }.collectAsStateWithLifecycle(null)
     val lastSets = last?.sets ?: emptyList()
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(Modifier.padding(vertical = 8.dp)) {
             Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).clickable(onClick = onOpenExercise)) {
+                Column(Modifier.weight(1f).clickable { howTo = true }) {
                     Text((if (ex.entry.blockLabel.isNotBlank()) "${ex.entry.blockLabel}  " else "") + ex.exercise.name, style = MaterialTheme.typography.titleMedium)
                     val sub = listOfNotNull(ex.entry.restSec.takeIf { it > 0 }?.let { "rest ${Strength.fmtSeconds(it)}" }, ex.entry.notes.takeIf { it.isNotBlank() })
                     if (sub.isNotEmpty()) Text(sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -248,6 +254,7 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                 if (!readOnly && ex.entry.restSec > 0) AppIconButton(R.drawable.ic_timer, "Start rest timer") { onRest(ex.entry.restSec) }
                 AppIconButton(R.drawable.ic_more, "Exercise actions") { menu = true }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("How to & demo") }, onClick = { menu = false; howTo = true })
                     DropdownMenuItem(text = { Text("Notes") }, onClick = { menu = false; editNotes = true })
                     DropdownMenuItem(text = { Text("Rest time") }, onClick = { menu = false; editRest = true })
                     DropdownMenuItem(text = { Text("Exercise history") }, onClick = { menu = false; onOpenExercise() })
@@ -267,16 +274,23 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                 Spacer(Modifier.width(44.dp))
             }
             ex.sets.forEach { s ->
+                val rowKind = effectiveKind(s, ex.exercise.loadKind)
                 // Same set number last time (if it carried a load), else the last loaded set, else the last set: shown as a
                 // placeholder and logged when an empty set is ticked.
-                val suggestion = lastSets.getOrNull(s.index)?.takeIf { it.load != null || kind != LoadKind.WEIGHT }
+                val suggestion = lastSets.getOrNull(s.index)?.takeIf { it.load != null || rowKind != LoadKind.WEIGHT }
                     ?: lastSets.lastOrNull { it.load != null } ?: lastSets.lastOrNull()
-                SetRow(s, kind, unit, readOnly, suggestion,
+                SetRow(s, rowKind, unit, readOnly, suggestion,
                     onUpdate = { scope.launch { app.repo.updateSet(it) } },
                     onCompleted = { if (ex.entry.restSec > 0) onRest(ex.entry.restSec) },
                     onDelete = { scope.launch { app.repo.deleteSet(s.id) } })
             }
             if (!readOnly) TextButton(onClick = { scope.launch { app.repo.addSet(ex.entry.id) } }, modifier = Modifier.padding(start = 8.dp)) { AppIcon(R.drawable.ic_add, null); Text("Add set") }
+        }
+    }
+    if (howTo) ExerciseHowToSheet(ex.exercise, onDismiss = { howTo = false }, onHistory = onOpenExercise, onEdit = { editExercise = true })
+    if (editExercise) {
+        ExerciseEditorDialog(initial = ex.exercise, onDismiss = { editExercise = false }) { name, cat, eq, k, notes, description, video ->
+            scope.launch { app.repo.updateExercise(ex.exercise.copy(name = name, category = cat, equipment = eq, loadKind = k, notes = notes, description = description, videoUrl = video)) }
         }
     }
     if (editNotes) TextPromptDialog("Notes", "Notes for ${ex.exercise.name}", ex.entry.notes, allowBlank = true, singleLine = false, onDismiss = { editNotes = false }) { scope.launch { app.repo.updateWorkoutExercise(ex.entry.copy(notes = it)) } }
@@ -360,7 +374,8 @@ private fun CompactField(value: String, modifier: Modifier, readOnly: Boolean, k
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center),
         placeholder = if (hint.isEmpty()) null else ({
-            Text(hint, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+            Text(hint, style = if (hint.length > 4) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f), maxLines = 1, softWrap = false,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }),
     )

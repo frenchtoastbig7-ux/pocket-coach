@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -84,9 +86,9 @@ fun ExercisePickerSheet(app: CoachApp, onDismiss: () -> Unit, onPick: (Exercise)
         }
     }
     if (creating) {
-        ExerciseEditorDialog(initial = null, initialName = query.trim(), onDismiss = { creating = false }) { name, cat, eq, kind, notes ->
+        ExerciseEditorDialog(initial = null, initialName = query.trim(), onDismiss = { creating = false }) { name, cat, eq, kind, notes, description, video ->
             scope.launch {
-                val id = app.repo.addExercise(name, cat, eq, kind, notes)
+                val id = app.repo.addExercise(name, cat, eq, kind, notes, description, video)
                 app.repo.exercise(id).collect { e -> if (e != null) { onPick(e); onDismiss() }; return@collect }
             }
         }
@@ -99,20 +101,22 @@ fun ExerciseEditorDialog(
     initial: Exercise?,
     initialName: String = "",
     onDismiss: () -> Unit,
-    onSave: (name: String, category: String, equipment: String, loadKind: LoadKind, notes: String) -> Unit,
+    onSave: (name: String, category: String, equipment: String, loadKind: LoadKind, notes: String, description: String, videoUrl: String) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf(initial?.name ?: initialName) }
     var category by rememberSaveable { mutableStateOf(initial?.category ?: "Accessory") }
     var equipment by rememberSaveable { mutableStateOf(initial?.equipment ?: "Barbell") }
     var kind by rememberSaveable { mutableStateOf(initial?.loadKind ?: LoadKind.WEIGHT) }
     var notes by rememberSaveable { mutableStateOf(initial?.notes ?: "") }
+    var description by rememberSaveable { mutableStateOf(initial?.description ?: "") }
+    var videoUrl by rememberSaveable { mutableStateOf(initial?.videoUrl ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier.padding(16.dp),
         title = { Text(if (initial == null) "New exercise" else "Edit exercise") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(Modifier.padding(top = 8.dp)) {
                     ChoiceField("Category", category, Exercise.CATEGORIES.map { it to it }, Modifier.weight(1f)) { category = it }
@@ -120,10 +124,13 @@ fun ExerciseEditorDialog(
                     ChoiceField("Equipment", equipment, Exercise.EQUIPMENT.map { it to it }, Modifier.weight(1f)) { equipment = it }
                 }
                 ChoiceField("Logs", kind, LoadKind.entries.map { it to it.label }, Modifier.padding(top = 8.dp)) { kind = it }
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("How to do it") }, minLines = 3, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                OutlinedTextField(value = videoUrl, onValueChange = { videoUrl = it }, label = { Text("Demo video link (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    supportingText = { Text("Blank: the demo button searches the web for it") })
                 OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Cues / notes") }, minLines = 2, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             }
         },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(name.trim(), category, equipment, kind, notes.trim()); onDismiss() }) { Text("Save") } },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(name.trim(), category, equipment, kind, notes.trim(), description.trim(), videoUrl.trim()); onDismiss() }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

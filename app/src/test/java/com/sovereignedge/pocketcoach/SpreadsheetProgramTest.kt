@@ -75,6 +75,14 @@ class SpreadsheetProgramTest {
     }
 
     @Test
+    fun videoAndDescriptionColumns() {
+        val csv = "Exercise,Sets,Reps,Video,How to\nZercher Squat,3,5,https://example.com/z,Bar in the crook of the elbows\n"
+        val e = SpreadsheetProgram.parseCsv(csv, "x", "kg").program.sessions[0].blocks[0].items[0].exercise
+        assertEquals("https://example.com/z", e.videoUrl)
+        assertEquals("Bar in the crook of the elbows", e.description)
+    }
+
+    @Test
     fun loadParsing() {
         assertEquals(RxKind.PERCENT to 72.5, SpreadsheetProgram.parseLoad("72.5%", "kg"))
         assertEquals(RxKind.RPE to 8.0, SpreadsheetProgram.parseLoad("RPE 8", "kg"))

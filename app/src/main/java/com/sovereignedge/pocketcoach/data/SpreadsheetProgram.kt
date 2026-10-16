@@ -21,6 +21,8 @@ import org.w3c.dom.Element
  * - **Load**: "75%" (of 1RM), "RPE 8", "100 kg", "225 lb", a bare number (in the importer's unit), "BW", or blank.
  *   Lists work here too ("70%/75%/80%").
  * - **Rest**: seconds or m:ss. **Type** (optional): weight, bodyweight, time, distance; otherwise inferred.
+ * - **Video** / **Description** (optional): a demo link and how-to text, stored on the exercise when it is created or
+ *   when it has none yet.
  *
  * Rows the reader can't make sense of are skipped and reported in [Result.warnings], not fatal.
  */
@@ -47,6 +49,8 @@ object SpreadsheetProgram {
         "category" to listOf("category", "pattern", "muscle group"),
         "equipment" to listOf("equipment", "implement"),
         "type" to listOf("type", "kind", "load kind", "log", "logs"),
+        "video" to listOf("video", "video url", "demo", "link", "url"),
+        "description" to listOf("description", "how to", "how-to", "instructions", "technique", "form"),
     )
 
     private val DAY_NAMES = listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -106,7 +110,7 @@ object SpreadsheetProgram {
             val rest = col(row, "rest").let { if (it.isBlank()) 0 else Strength.parseSeconds(it) ?: run { warnings += "Row $lineNo: can't read rest “$it”"; 0 } }
             val category = col(row, "category").ifBlank { "Accessory" }
             val equipment = col(row, "equipment").ifBlank { "Other" }
-            days[week to day]!!.third += Rx(col(row, "block").uppercase(), ProgramJson.ParsedExercise(exercise, category, equipment, kind), sets, rest, col(row, "notes"))
+            days[week to day]!!.third += Rx(col(row, "block").uppercase(), ProgramJson.ParsedExercise(exercise, category, equipment, kind, col(row, "description"), col(row, "video")), sets, rest, col(row, "notes"))
         }
         require(days.isNotEmpty()) { "No training days were found" }
 

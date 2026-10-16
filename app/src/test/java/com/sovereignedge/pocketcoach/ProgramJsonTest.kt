@@ -18,7 +18,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ProgramJsonTest {
-    private val squat = Exercise(1, "u1", "Back Squat", "Squat", "Barbell", LoadKind.WEIGHT, "", true)
+    private val squat = Exercise(1, "u1", "Back Squat", "Squat", "Barbell", LoadKind.WEIGHT, "", true, description = "Sit down, stand up.", videoUrl = "https://example.com/squat")
     private val plank = Exercise(2, "u2", "Plank", "Core", "Bodyweight", LoadKind.TIME, "", true)
 
     @Test
@@ -50,6 +50,8 @@ class ProgramJsonTest {
         val a = s.blocks[0].items[0]
         assertEquals("Back Squat", a.exercise.name)
         assertEquals(LoadKind.WEIGHT, a.exercise.loadKind)
+        assertEquals("Sit down, stand up.", a.exercise.description)
+        assertEquals("https://example.com/squat", a.exercise.videoUrl)
         assertEquals(180, a.restSec)
         assertEquals(listOf(SetRx("5", RxKind.PERCENT, 80.0)), a.sets)
         val b = s.blocks[1].items[0]
