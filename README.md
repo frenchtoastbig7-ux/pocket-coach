@@ -28,9 +28,13 @@ included in Android device backups.
 
 ## Installing
 
-Debug builds come from `./gradlew assembleDebug`. Signed releases will be published on the
-[Releases page](https://github.com/frenchtoastbig7-ux/pocket-coach/releases) and through the
-`https://frenchtoastbig7-ux.github.io/fdroid/repo` F-Droid repo once the first release is cut.
+- **F-Droid client (Droid-ify, Neo Store, F-Droid)**: add the repo `https://frenchtoastbig7-ux.github.io/fdroid/repo`
+  and install Pocket Coach; updates arrive through the client.
+- **Direct APK**: each release on the [Releases page](https://github.com/frenchtoastbig7-ux/pocket-coach/releases)
+  carries the signed APK.
+
+Release signing certificate (SHA-256):
+`b3527f4e3fb3aebcc861ffc8b8ea2b4eb461c48d2ce631972eed564fc37e3446`
 
 ## Building
 
@@ -72,6 +76,9 @@ Week,Day,Session,Block,Exercise,Sets,Reps,Load,Rest,Notes
 ```
 
 The program is named after the file. Percentages are resolved against the athlete's 1RM when a session is started.
+
+Want Claude to write the plan? [docs/claude-plan-prompt.md](docs/claude-plan-prompt.md) is a prompt that makes it answer in exactly
+this CSV format.
 
 ## Program file format
 
