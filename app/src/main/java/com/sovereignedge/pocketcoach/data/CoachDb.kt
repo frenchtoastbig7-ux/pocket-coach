@@ -125,7 +125,8 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
                 seconds INTEGER,
                 distance REAL,
                 rpe REAL,
-                completed INTEGER NOT NULL DEFAULT 0)"""
+                completed INTEGER NOT NULL DEFAULT 0,
+                warmup INTEGER NOT NULL DEFAULT 0)"""
         )
         db.execSQL("CREATE INDEX sets_we ON sets(we_id)")
         db.execSQL(
@@ -146,6 +147,9 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
             db.execSQL("ALTER TABLE exercises ADD COLUMN description TEXT NOT NULL DEFAULT ''")
             db.execSQL("ALTER TABLE exercises ADD COLUMN video_url TEXT NOT NULL DEFAULT ''")
             seedExercises(db) // adds built-ins introduced since, and fills in descriptions
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0")
         }
     }
 
@@ -237,7 +241,7 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
     }
 
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
 
         private val W = LoadKind.WEIGHT
         private val B = LoadKind.BODYWEIGHT

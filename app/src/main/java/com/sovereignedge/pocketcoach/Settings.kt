@@ -12,6 +12,8 @@ data class SettingsSnapshot(
     val increment: Double,
     /** "system", "light" or "dark". */
     val themeMode: String,
+    /** Material You wallpaper colours instead of the app's own palette. */
+    val dynamicColor: Boolean,
     /** Default rest between sets, seconds. */
     val defaultRest: Int,
     /** Shown as the author of programs written on this phone. */
@@ -43,6 +45,7 @@ class Settings(context: Context) {
     fun setPlates(value: List<Double>) = edit { putString(K_PLATES, Plates.formatList(value)) }
     fun setIncrement(value: Double) = edit { putFloat(K_INCREMENT, value.toFloat()) }
     fun setThemeMode(value: String) = edit { putString(K_THEME, value) }
+    fun setDynamicColor(value: Boolean) = edit { putBoolean(K_DYNAMIC, value) }
     fun setDefaultRest(value: Int) = edit { putInt(K_REST, value.coerceIn(0, 3600)) }
     fun setAthleteName(value: String) = edit { putString(K_NAME, value.trim()) }
     fun setKeepScreenOn(value: Boolean) = edit { putBoolean(K_SCREEN_ON, value) }
@@ -53,30 +56,35 @@ class Settings(context: Context) {
         _state.value = snapshot()
     }
 
+    /** Pounds where that's the gym convention (US, Liberia, Myanmar), kilograms elsewhere; only until the user picks. */
+    private fun defaultUnit(): String = if (java.util.Locale.getDefault().country in setOf("US", "LR", "MM")) "lb" else "kg"
+
     private fun snapshot() = SettingsSnapshot(
-        unit = prefs.getString(K_UNIT, "kg") ?: "kg",
-        increment = prefs.getFloat(K_INCREMENT, 2.5f).toDouble(),
-        themeMode = prefs.getString(K_THEME, "system") ?: "system",
+        unit = prefs.getString(K_UNIT, null) ?: defaultUnit(),
+        increment = if (prefs.contains(K_INCREMENT)) prefs.getFloat(K_INCREMENT, 2.5f).toDouble() else if (defaultUnit() == "lb") 5.0 else 2.5,
+        themeMode = prefs.getString(K_THEME, "dark") ?: "dark",
+        dynamicColor = prefs.getBoolean(K_DYNAMIC, false),
         defaultRest = prefs.getInt(K_REST, 90),
         athleteName = prefs.getString(K_NAME, "") ?: "",
         keepScreenOn = prefs.getBoolean(K_SCREEN_ON, true),
         restSound = prefs.getBoolean(K_REST_SOUND, true),
         barWeight = run {
-            val unit = prefs.getString(K_UNIT, "kg") ?: "kg"
+            val unit = prefs.getString(K_UNIT, null) ?: defaultUnit()
             if (prefs.contains(K_BAR)) prefs.getFloat(K_BAR, 20f).toDouble() else Plates.defaultBar(unit)
         },
         plates = run {
-            val unit = prefs.getString(K_UNIT, "kg") ?: "kg"
+            val unit = prefs.getString(K_UNIT, null) ?: defaultUnit()
             prefs.getString(K_PLATES, null)?.let(Plates::parseList)?.takeIf { it.isNotEmpty() } ?: Plates.defaultPlates(unit)
         },
     )
 
     companion object {
         val UNITS = listOf("kg" to "Kilograms", "lb" to "Pounds")
-        val THEME_MODES = listOf("system" to "System", "light" to "Light", "dark" to "Dark")
+        val THEME_MODES = listOf("dark" to "Dark", "light" to "Light", "system" to "System")
         private const val K_UNIT = "unit"
         private const val K_INCREMENT = "increment"
         private const val K_THEME = "theme_mode"
+        private const val K_DYNAMIC = "dynamic_color"
         private const val K_REST = "default_rest"
         private const val K_NAME = "athlete_name"
         private const val K_SCREEN_ON = "keep_screen_on"

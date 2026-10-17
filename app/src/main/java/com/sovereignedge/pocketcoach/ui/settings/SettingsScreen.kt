@@ -91,7 +91,7 @@ fun SettingsScreen(app: CoachApp, onBack: () -> Unit) {
                     SegmentedButton(selected = settings.themeMode == v, onClick = { app.settings.setThemeMode(v) }, shape = SegmentedButtonDefaults.itemShape(i, Settings.THEME_MODES.size)) { Text(label) }
                 }
             }
-            Text("Colours follow your wallpaper (Material You).", Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ListItem(headlineContent = { Text("Wallpaper colours (Material You)") }, supportingContent = { Text("Off: the app's own black and orange") }, trailingContent = { Switch(settings.dynamicColor, app.settings::setDynamicColor) })
 
             SectionHeader("Coach")
             OutlinedTextField(

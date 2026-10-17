@@ -1,6 +1,7 @@
 package com.sovereignedge.pocketcoach.ui.common
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.sovereignedge.pocketcoach.R
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -136,10 +138,10 @@ fun EmptyState(@DrawableRes icon: Int, title: String, body: String, modifier: Mo
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
-        text,
+        text.uppercase(),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
+        modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 6.dp),
     )
 }
 
@@ -175,5 +177,21 @@ fun StatRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** TrainHeroic-style block badge: "A", "B1", "W". */
+@Composable
+fun BlockBadge(label: String, modifier: Modifier = Modifier, muted: Boolean = false) {
+    androidx.compose.foundation.layout.Box(
+        modifier
+            .size(width = 34.dp, height = 26.dp)
+            .background(
+                if (muted) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                MaterialTheme.shapes.small,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.sp), color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary)
     }
 }

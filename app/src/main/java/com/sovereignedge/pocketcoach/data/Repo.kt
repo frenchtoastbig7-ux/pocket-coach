@@ -424,6 +424,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         distance = c.getDoubleOrNull("distance"),
         rpe = c.getDoubleOrNull("rpe"),
         completed = c.getInt(c.getColumnIndexOrThrow("completed")) == 1,
+        warmup = c.getInt(c.getColumnIndexOrThrow("warmup")) == 1,
     )
 
     /** Creates a workout from a programmed session, turning %1RM prescriptions into target loads. */
@@ -484,7 +485,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         val records = ArrayList<NewRecord>()
         for (ex in detail.exercises) {
             if (ex.exercise.loadKind != LoadKind.WEIGHT) continue
-            val best = ex.sets.filter { it.completed }.mapNotNull { s -> Strength.estimate1rm(s.load ?: return@mapNotNull null, s.reps ?: return@mapNotNull null) }.maxOrNull() ?: continue
+            val best = ex.sets.filter { it.completed && !it.warmup }.mapNotNull { s -> Strength.estimate1rm(s.load ?: return@mapNotNull null, s.reps ?: return@mapNotNull null) }.maxOrNull() ?: continue
             val current = currentMaxOf(d, ex.exercise.id)
             if (current == null || best > current + 0.01) {
                 d.insertOrThrow("maxes", null, ContentValues().apply {
@@ -532,6 +533,21 @@ class Repo(context: Context, dbName: String = "coach.db") {
         })
     }
 
+    /** Inserts warm-up sets in front of the working sets, with their loads as targets. Existing warm-ups are replaced. */
+    suspend fun setWarmups(weId: Long, steps: List<Warmup.Step>) = write(T_SETS) { d ->
+        d.delete("sets", "we_id=? AND warmup=1", arrayOf(weId.toString()))
+        val working = d.query("sets", arrayOf("id"), "we_id=?", arrayOf(weId.toString()), null, null, "idx, id").mapAll { it.getLong(0) }
+        steps.forEachIndexed { i, st ->
+            d.insertOrThrow("sets", null, ContentValues().apply {
+                put("we_id", weId); put("idx", i); put("target_reps", st.reps.toString()); put("target_load", st.load)
+                put("rx_kind", RxKind.ABSOLUTE.name); put("rx_value", st.load); put("warmup", 1)
+            })
+        }
+        working.forEachIndexed { i, id -> d.update("sets", ContentValues().apply { put("idx", steps.size + i) }, "id=?", arrayOf(id.toString())) }
+    }
+
+    suspend fun clearWarmups(weId: Long) = setWarmups(weId, emptyList())
+
     suspend fun updateSet(s: WorkoutSet) = write(T_SETS) { d ->
         d.update("sets", ContentValues().apply {
             put("target_reps", s.targetReps)
@@ -575,7 +591,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         d.rawQuery(
             """SELECT s.*, w.id AS w_id, w.date AS w_date, w.title AS w_title FROM sets s
                JOIN workout_exercises we ON we.id=s.we_id JOIN workouts w ON w.id=we.workout_id
-               WHERE we.exercise_id=? AND s.completed=1 ORDER BY w.date DESC, w.started_at DESC, s.idx LIMIT ?""",
+               WHERE we.exercise_id=? AND s.completed=1 AND s.warmup=0 ORDER BY w.date DESC, w.started_at DESC, s.idx LIMIT ?""",
             arrayOf(exerciseId.toString(), limit.toString())
         ).mapAll { c ->
             SetRecord(setOf(c), c.getLong(c.getColumnIndexOrThrow("w_id")), LocalDate.ofEpochDay(c.getLong(c.getColumnIndexOrThrow("w_date"))), c.getString(c.getColumnIndexOrThrow("w_title")))
@@ -588,12 +604,12 @@ class Repo(context: Context, dbName: String = "coach.db") {
     fun lastPerformance(exerciseId: Long, excludeWorkoutId: Long): Flow<LastPerformance?> = watch(T_SETS, T_WO, T_WE) { d ->
         val head = d.rawQuery(
             """SELECT w.id, w.date FROM workouts w JOIN workout_exercises we ON we.workout_id=w.id JOIN sets s ON s.we_id=we.id
-               WHERE we.exercise_id=? AND w.id<>? AND s.completed=1 ORDER BY w.date DESC, w.started_at DESC LIMIT 1""",
+               WHERE we.exercise_id=? AND w.id<>? AND s.completed=1 AND s.warmup=0 ORDER BY w.date DESC, w.started_at DESC LIMIT 1""",
             arrayOf(exerciseId.toString(), excludeWorkoutId.toString())
         ).use { if (it.moveToFirst()) it.getLong(0) to LocalDate.ofEpochDay(it.getLong(1)) else null } ?: return@watch null
         val sets = d.rawQuery(
             """SELECT s.* FROM sets s JOIN workout_exercises we ON we.id=s.we_id
-               WHERE we.workout_id=? AND we.exercise_id=? AND s.completed=1 ORDER BY we.sort, s.idx""",
+               WHERE we.workout_id=? AND we.exercise_id=? AND s.completed=1 AND s.warmup=0 ORDER BY we.sort, s.idx""",
             arrayOf(head.first.toString(), exerciseId.toString())
         ).mapAll(::setOf)
         LastPerformance(head.first, head.second, sets)
@@ -604,7 +620,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         val exercises = queryExercises(d, null, null).associateBy { it.id }
         val bests = HashMap<Long, Triple<Double?, Double?, Int>>()
         d.rawQuery(
-            """SELECT we.exercise_id, s.load, s.reps FROM sets s JOIN workout_exercises we ON we.id=s.we_id WHERE s.completed=1""", null
+            """SELECT we.exercise_id, s.load, s.reps FROM sets s JOIN workout_exercises we ON we.id=s.we_id WHERE s.completed=1 AND s.warmup=0""", null
         ).mapAll { c ->
             val exId = c.getLong(0)
             val load = if (c.isNull(1)) null else c.getDouble(1)
@@ -632,7 +648,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         val from = thisMonday.minusWeeks((weeks - 1).toLong())
         val rows = d.rawQuery(
             """SELECT w.id, w.date, COALESCE(s.load,0)*COALESCE(s.reps,0), s.completed FROM workouts w
-               LEFT JOIN workout_exercises we ON we.workout_id=w.id LEFT JOIN sets s ON s.we_id=we.id
+               LEFT JOIN workout_exercises we ON we.workout_id=w.id LEFT JOIN sets s ON s.we_id=we.id AND s.warmup=0
                WHERE w.date>=? AND w.finished_at IS NOT NULL""",
             arrayOf(from.toEpochDay().toString())
         ).mapAll { c -> Triple(c.getLong(0), LocalDate.ofEpochDay(c.getLong(1)), if (c.isNull(3) || c.getInt(3) == 0) 0.0 else c.getDouble(2)) to (!c.isNull(3) && c.getInt(3) == 1) }
@@ -649,8 +665,8 @@ class Repo(context: Context, dbName: String = "coach.db") {
     fun totals(): Flow<Totals> = watch(T_WO, T_SETS, T_EX, T_PROG) { d ->
         Totals(
             workouts = d.rawQuery("SELECT COUNT(*) FROM workouts WHERE finished_at IS NOT NULL", null).single { it.getInt(0) },
-            sets = d.rawQuery("SELECT COUNT(*) FROM sets WHERE completed=1", null).single { it.getInt(0) },
-            tonnage = d.rawQuery("SELECT COALESCE(SUM(COALESCE(load,0)*COALESCE(reps,0)),0) FROM sets WHERE completed=1", null).single { it.getDouble(0) },
+            sets = d.rawQuery("SELECT COUNT(*) FROM sets WHERE completed=1 AND warmup=0", null).single { it.getInt(0) },
+            tonnage = d.rawQuery("SELECT COALESCE(SUM(COALESCE(load,0)*COALESCE(reps,0)),0) FROM sets WHERE completed=1 AND warmup=0", null).single { it.getDouble(0) },
             exercises = d.rawQuery("SELECT COUNT(*) FROM exercises", null).single { it.getInt(0) },
             programs = d.rawQuery("SELECT COUNT(*) FROM programs", null).single { it.getInt(0) },
         )

@@ -161,6 +161,8 @@ data class WorkoutSet(
     val distance: Double?,
     val rpe: Double?,
     val completed: Boolean,
+    /** Warm-up sets ramp to the work; they don't count toward records, hints or totals. */
+    val warmup: Boolean = false,
 )
 
 data class WorkoutExerciseDetail(val entry: WorkoutExercise, val exercise: Exercise, val sets: List<WorkoutSet>)

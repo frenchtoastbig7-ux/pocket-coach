@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PocketCoach" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.PocketCoach" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
     </style>

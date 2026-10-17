@@ -54,12 +54,14 @@ import com.sovereignedge.pocketcoach.data.LoadKind
 import com.sovereignedge.pocketcoach.data.Repo
 import com.sovereignedge.pocketcoach.data.RxKind
 import com.sovereignedge.pocketcoach.data.Strength
+import com.sovereignedge.pocketcoach.data.Warmup
 import com.sovereignedge.pocketcoach.data.WorkoutExerciseDetail
 import com.sovereignedge.pocketcoach.data.WorkoutSet
 import com.sovereignedge.pocketcoach.ui.Nav
 import com.sovereignedge.pocketcoach.ui.Route
 import com.sovereignedge.pocketcoach.ui.common.AppIcon
 import com.sovereignedge.pocketcoach.ui.common.AppIconButton
+import com.sovereignedge.pocketcoach.ui.common.BlockBadge
 import com.sovereignedge.pocketcoach.ui.common.ConfirmDialog
 import com.sovereignedge.pocketcoach.ui.common.ExercisePickerSheet
 import com.sovereignedge.pocketcoach.ui.common.TextPromptDialog
@@ -128,7 +130,7 @@ fun WorkoutScreen(app: CoachApp, workoutId: Long, nav: Nav) {
                 navigationIcon = { AppIconButton(R.drawable.ic_arrow_back, "Back") { nav.pop() } },
                 actions = {
                     if (w != null && !w.finished) {
-                        Button(onClick = { scope.launch { records = app.repo.finishWorkout(workoutId) } }, modifier = Modifier.padding(end = 4.dp)) { Text("Finish") }
+                        Button(onClick = { scope.launch { records = app.repo.finishWorkout(workoutId) } }, modifier = Modifier.padding(end = 4.dp)) { Text("FINISH", style = MaterialTheme.typography.labelLarge) }
                     }
                     AppIconButton(R.drawable.ic_more, "More") { menu = true }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -238,15 +240,18 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
     var plateOpen by remember { mutableStateOf(false) }
     var plateSetId by remember { mutableStateOf<Long?>(null) }
     val barbell = ex.exercise.equipment == "Barbell" || ex.exercise.equipment == "Trap bar"
+    var warmupOpen by remember { mutableStateOf(false) }
+    val hasWarmups = ex.sets.any { it.warmup }
     // The exercise's default shape, unless its sets say otherwise (a timed row of a distance exercise).
     val kind = ex.sets.firstOrNull()?.let { effectiveKind(it, ex.exercise.loadKind) } ?: ex.exercise.loadKind
     val last by remember(ex.exercise.id, ex.entry.workoutId) { app.repo.lastPerformance(ex.exercise.id, ex.entry.workoutId) }.collectAsStateWithLifecycle(null)
     val lastSets = last?.sets ?: emptyList()
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(vertical = 8.dp)) {
             Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (ex.entry.blockLabel.isNotBlank()) { BlockBadge(ex.entry.blockLabel); Spacer(Modifier.width(10.dp)) }
                 Column(Modifier.weight(1f).clickable { howTo = true }) {
-                    Text((if (ex.entry.blockLabel.isNotBlank()) "${ex.entry.blockLabel}  " else "") + ex.exercise.name, style = MaterialTheme.typography.titleMedium)
+                    Text(ex.exercise.name, style = MaterialTheme.typography.titleMedium)
                     val sub = listOfNotNull(ex.entry.restSec.takeIf { it > 0 }?.let { "rest ${Strength.fmtSeconds(it)}" }, ex.entry.notes.takeIf { it.isNotBlank() })
                     if (sub.isNotEmpty()) Text(sub.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     last?.let { l ->
@@ -261,9 +266,11 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                 AppIconButton(R.drawable.ic_more, "Exercise actions") { menu = true }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("How to & demo") }, onClick = { menu = false; howTo = true })
+                    if (!readOnly && kind == LoadKind.WEIGHT) DropdownMenuItem(text = { Text(if (hasWarmups) "Regenerate warm-up sets" else "Add warm-up sets") }, onClick = { menu = false; warmupOpen = true })
+                    if (!readOnly && hasWarmups) DropdownMenuItem(text = { Text("Remove warm-up sets") }, onClick = { menu = false; scope.launch { app.repo.clearWarmups(ex.entry.id) } })
                     DropdownMenuItem(text = { Text("Plate calculator") }, onClick = {
                         menu = false; plateSetId = null
-                        plateLoad = ex.sets.firstOrNull { !it.completed }?.let { it.load ?: it.targetLoad } ?: ex.sets.firstOrNull()?.let { it.load ?: it.targetLoad }
+                        plateLoad = ex.sets.firstOrNull { !it.completed && !it.warmup }?.let { it.load ?: it.targetLoad } ?: ex.sets.firstOrNull { !it.warmup }?.let { it.load ?: it.targetLoad }
                         plateOpen = true
                     })
                     DropdownMenuItem(text = { Text("Notes") }, onClick = { menu = false; editNotes = true })
@@ -276,30 +283,44 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Set", Modifier.width(32.dp), style = MaterialTheme.typography.labelMedium)
-                Text("Target", Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium)
-                if (kind != LoadKind.TIME && kind != LoadKind.DISTANCE || true) Text(if (kind == LoadKind.BODYWEIGHT) "+$unit" else unit, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                Text(when (kind) { LoadKind.TIME -> "Time"; LoadKind.DISTANCE -> "m"; else -> "Reps" }, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                Text("RPE", Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium)
+            val hdr = MaterialTheme.typography.labelMedium
+            val hdrColor = MaterialTheme.colorScheme.onSurfaceVariant
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("SET", Modifier.width(32.dp), style = hdr, color = hdrColor)
+                Text("TARGET", Modifier.weight(1.2f), style = hdr, color = hdrColor)
+                Text((if (kind == LoadKind.BODYWEIGHT) "+$unit" else unit).uppercase(), Modifier.weight(1f), style = hdr, color = hdrColor, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(when (kind) { LoadKind.TIME -> "TIME"; LoadKind.DISTANCE -> "M"; else -> "REPS" }, Modifier.weight(1f), style = hdr, color = hdrColor, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text("RPE", Modifier.weight(0.8f), style = hdr, color = hdrColor, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Spacer(Modifier.width(44.dp))
             }
+            val working = ex.sets.filter { !it.warmup }
             ex.sets.forEach { s ->
                 val rowKind = effectiveKind(s, ex.exercise.loadKind)
+                val workingIndex = working.indexOf(s)
                 // Same set number last time (if it carried a load), else the last loaded set, else the last set: shown as a
                 // placeholder and logged when an empty set is ticked.
-                val suggestion = lastSets.getOrNull(s.index)?.takeIf { it.load != null || rowKind != LoadKind.WEIGHT }
+                val suggestion = if (s.warmup) null else lastSets.getOrNull(workingIndex)?.takeIf { it.load != null || rowKind != LoadKind.WEIGHT }
                     ?: lastSets.lastOrNull { it.load != null } ?: lastSets.lastOrNull()
-                SetRow(s, rowKind, unit, readOnly, suggestion,
+                SetRow(s, rowKind, unit, readOnly, suggestion, label = if (s.warmup) "W" else "${workingIndex + 1}",
                     onPlates = if (barbell && rowKind == LoadKind.WEIGHT) ({ plateSetId = s.id; plateLoad = s.load ?: s.targetLoad ?: suggestion?.load; plateOpen = true }) else null,
                     onUpdate = { scope.launch { app.repo.updateSet(it) } },
-                    onCompleted = { if (ex.entry.restSec > 0) onRest(ex.entry.restSec) },
+                    onCompleted = { if (ex.entry.restSec > 0 && !s.warmup) onRest(ex.entry.restSec) },
                     onDelete = { scope.launch { app.repo.deleteSet(s.id) } })
             }
             if (!readOnly) TextButton(onClick = { scope.launch { app.repo.addSet(ex.entry.id) } }, modifier = Modifier.padding(start = 8.dp)) { AppIcon(R.drawable.ic_add, null); Text("Add set") }
         }
     }
     if (howTo) ExerciseHowToSheet(ex.exercise, onDismiss = { howTo = false }, onHistory = onOpenExercise, onEdit = { editExercise = true })
+    if (warmupOpen) {
+        val first = ex.sets.firstOrNull { !it.warmup }
+        val firstSuggestion = lastSets.firstOrNull { it.load != null }
+        WarmupDialog(
+            app = app, unit = unit, barbell = barbell,
+            initialKg = first?.let { it.load ?: it.targetLoad } ?: firstSuggestion?.load,
+            onDismiss = { warmupOpen = false },
+            onAdd = { steps -> scope.launch { app.repo.setWarmups(ex.entry.id, steps) } },
+        )
+    }
     if (plateOpen) {
         val target = plateSetId?.let { id -> ex.sets.firstOrNull { it.id == id } }
         PlateCalculatorSheet(app.settings, plateLoad, onDismiss = { plateOpen = false },
@@ -318,7 +339,7 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
 
 /** One logged set: target on the left, editable load / reps (or time / distance) / RPE, and a done checkbox. */
 @Composable
-private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolean, suggestion: WorkoutSet?, onPlates: (() -> Unit)?, onUpdate: (WorkoutSet) -> Unit, onCompleted: () -> Unit, onDelete: () -> Unit) {
+private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolean, suggestion: WorkoutSet?, label: String, onPlates: (() -> Unit)?, onUpdate: (WorkoutSet) -> Unit, onCompleted: () -> Unit, onDelete: () -> Unit) {
     var loadText by remember(s.id) { mutableStateOf(Strength.fmtLoad(s.load, unit)) }
     var primaryText by remember(s.id) { mutableStateOf(primaryOf(s, kind)) }
     var rpeText by remember(s.id) { mutableStateOf(s.rpe?.let(Strength::fmtNum) ?: "") }
@@ -342,7 +363,7 @@ private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolea
     }
     val bg = if (s.completed) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f) else androidx.compose.ui.graphics.Color.Transparent
     Row(Modifier.fillMaxWidth().background(bg).padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("${s.index + 1}", Modifier.width(32.dp))
+        Text(label, Modifier.width(32.dp), color = if (s.warmup) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
         Text(
             target.ifBlank { "—" }, Modifier.weight(1.2f).let { m -> if (onPlates != null) m.clickable(onClick = onPlates) else m },
             style = MaterialTheme.typography.bodyMedium,
@@ -418,4 +439,39 @@ private fun parsePrimary(t: String, kind: LoadKind): Any? = when (kind) {
     LoadKind.TIME -> Strength.parseSeconds(t)
     LoadKind.DISTANCE -> t.replace(',', '.').toDoubleOrNull()
     else -> t.filter(Char::isDigit).toIntOrNull()
+}
+
+/** Proposes a warm-up ramp toward a working load and lets the athlete adjust the load before adding it. */
+@Composable
+private fun WarmupDialog(app: CoachApp, unit: String, barbell: Boolean, initialKg: Double?, onDismiss: () -> Unit, onAdd: (List<Warmup.Step>) -> Unit) {
+    val settings = app.settings.current
+    var loadText by remember { mutableStateOf(initialKg?.let { Strength.fmtLoad(it, unit) } ?: "") }
+    val workingKg = Strength.parseLoad(loadText, unit)
+    val barKg = if (barbell) Strength.fromUnit(settings.barWeight, unit) else null
+    val steps = workingKg?.let { Warmup.ramp(it, unit, settings.increment, barKg) } ?: emptyList()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Warm-up sets") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = loadText, onValueChange = { loadText = it }, label = { Text("First working set ($unit)") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                if (workingKg == null) Text("Enter the load of your first working set.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else if (steps.isEmpty()) Text("That's light enough to start straight in.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else steps.forEachIndexed { i, st ->
+                    Text("W${i + 1}   ${Strength.fmtLoad(st.load, unit)} $unit × ${st.reps}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 2.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    (if (barbell) "Empty bar for 8, then " else "") + "50 % × 5, 70 % × 3 and 85 % × 1, rounded to ${Strength.fmtNum(settings.increment)} $unit. Warm-ups don't count toward records or totals.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(enabled = steps.isNotEmpty(), onClick = { onAdd(steps); onDismiss() }) { Text("Add ${steps.size} sets") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

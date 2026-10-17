@@ -1,8 +1,9 @@
 # Pocket Coach
 
 An open-source strength and conditioning app for Android, in the spirit of TrainHeroic: a coach writes a program,
-the athlete follows it day by day, logs every set, and watches their numbers move. Kotlin, Jetpack Compose,
-Material You. Everything lives on the phone.
+the athlete follows it day by day, logs every set, and watches their numbers move. Kotlin and Jetpack Compose, a
+dark, bold, TrainHeroic-style look by default (Material You wallpaper colours optional). Everything lives on the phone.
+Loads display in pounds or kilograms (Settings → Units; pounds by default on US phones).
 
 - **Today** – a week strip with your calendar. The session your program puts on today is one tap from starting;
   logged workouts stay on their day. An empty workout can be started on any date.
@@ -14,6 +15,9 @@ Material You. Everything lives on the phone.
   current 1RM, rounded to your plate step), load / reps / RPE inputs, a tick per set, a rest timer with a beep, and a
   finish summary. Each exercise shows what you did last time, and those numbers sit in the load and reps fields as
   placeholders, so ticking an untouched set logs the prescription, or failing that last time's numbers, as performed.
+- **Warm-up sets** – from an exercise's menu, generate a ramp toward the first working load (empty bar × 8, then
+  50 % × 5, 70 % × 3, 85 % × 1, rounded to your plate step). Warm-ups show as "W" rows and don't count toward
+  records, last-time hints or totals.
 - **Plate calculator** – tap the target of any barbell set to see the plates per side for that load, with the bar
   weight and your plate set configurable in Settings. If the load isn't loadable exactly it shows the closest and
   can log that instead.
@@ -130,7 +134,6 @@ app/src/main/java/com/sovereignedge/pocketcoach/
 
 ## Roadmap
 
-- Warm-up set generator
 - Body-weight log and photos
 - Leaderboards and team feed over an optional self-hosted server (the data model already carries UUIDs for this)
 - Import TrainHeroic's own export once a sample of its layout is available

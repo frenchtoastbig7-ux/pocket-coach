@@ -45,6 +45,7 @@ import com.sovereignedge.pocketcoach.ui.Nav
 import com.sovereignedge.pocketcoach.ui.Route
 import com.sovereignedge.pocketcoach.ui.common.AppIcon
 import com.sovereignedge.pocketcoach.ui.common.AppIconButton
+import com.sovereignedge.pocketcoach.ui.common.BlockBadge
 import com.sovereignedge.pocketcoach.ui.common.SectionHeader
 import com.sovereignedge.pocketcoach.ui.common.dayName
 import com.sovereignedge.pocketcoach.ui.common.fmtDate
@@ -136,22 +137,22 @@ private fun WeekStrip(weekStart: LocalDate, selected: LocalDate, today: LocalDat
                 val isSel = date == selected
                 Column(
                     Modifier.weight(1f).padding(2.dp).clip(MaterialTheme.shapes.medium)
-                        .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                        .background(if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
                         .clickable { onSelect(date) }.padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(dayName(i + 1).take(1), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(dayName(i + 1).take(1), style = MaterialTheme.typography.labelSmall, color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         date.dayOfMonth.toString(),
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (date == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        color = if (isSel) MaterialTheme.colorScheme.onPrimary else if (date == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     )
                     val mark = marks[date]
                     Box(
                         Modifier.padding(top = 3.dp).size(6.dp).clip(CircleShape).background(
                             when (mark) {
-                                true -> MaterialTheme.colorScheme.tertiary
-                                false -> MaterialTheme.colorScheme.outline
+                                true -> if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.tertiary
+                                false -> if (isSel) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline
                                 null -> androidx.compose.ui.graphics.Color.Transparent
                             }
                         )
@@ -177,9 +178,9 @@ private fun WorkoutCard(w: Workout, onClick: () -> Unit) {
 
 @Composable
 private fun ScheduledCard(s: Repo.Scheduled, unit: String, onStart: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(16.dp)) {
-            Text("${s.program.name} · Week ${s.week}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text("${s.program.name} · WEEK ${s.week} · ${dayName(s.day).uppercase()}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             val session = s.session
             if (session == null) {
                 Text("Rest day", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
@@ -187,11 +188,18 @@ private fun ScheduledCard(s: Repo.Scheduled, unit: String, onStart: () -> Unit) 
                 Text(session.session.title.ifBlank { "Day ${session.session.day}" }, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
                 if (session.session.notes.isNotBlank()) Text(session.session.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
-                for (b in session.blocks) for (i in b.items) {
-                    Text("${b.block.label}  ${i.exercise.name}  ·  ${summariseSets(i.item.sets, unit)}", style = MaterialTheme.typography.bodyMedium)
+                for (b in session.blocks) b.items.forEachIndexed { idx, i ->
+                    Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BlockBadge(b.block.label + if (b.items.size > 1) (idx + 1).toString() else "")
+                        Spacer(Modifier.size(10.dp))
+                        Column {
+                            Text(i.exercise.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(summariseSets(i.item.sets, unit), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = onStart) { AppIcon(R.drawable.ic_play, null); Spacer(Modifier.size(6.dp)); Text("Start") }
+                Spacer(Modifier.height(14.dp))
+                Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) { AppIcon(R.drawable.ic_play, null); Spacer(Modifier.size(6.dp)); Text("START WORKOUT", style = MaterialTheme.typography.labelLarge) }
             }
         }
     }

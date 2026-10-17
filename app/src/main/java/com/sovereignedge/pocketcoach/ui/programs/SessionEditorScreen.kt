@@ -56,6 +56,7 @@ import com.sovereignedge.pocketcoach.ui.Nav
 import com.sovereignedge.pocketcoach.ui.Route
 import com.sovereignedge.pocketcoach.ui.common.AppIcon
 import com.sovereignedge.pocketcoach.ui.common.AppIconButton
+import com.sovereignedge.pocketcoach.ui.common.BlockBadge
 import com.sovereignedge.pocketcoach.ui.common.ChoiceField
 import com.sovereignedge.pocketcoach.ui.common.ConfirmDialog
 import com.sovereignedge.pocketcoach.ui.common.ExercisePickerSheet
@@ -112,8 +113,11 @@ fun SessionEditorScreen(app: CoachApp, sessionId: Long, nav: Nav) {
                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
                     Column(Modifier.padding(vertical = 8.dp)) {
                         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Block ${b.block.label}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.weight(1f).clickable { renameBlock = b.block })
+                            Row(Modifier.weight(1f).clickable { renameBlock = b.block }, verticalAlignment = Alignment.CenterVertically) {
+                                BlockBadge(b.block.label)
+                                Spacer(Modifier.width(10.dp))
+                                Text("BLOCK ${b.block.label}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             if (b.items.size > 1) Text("superset", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             AppIconButton(R.drawable.ic_up, "Move up") { scope.launch { app.repo.moveBlock(b.block.id, true) } }
                             AppIconButton(R.drawable.ic_down, "Move down") { scope.launch { app.repo.moveBlock(b.block.id, false) } }
@@ -122,7 +126,7 @@ fun SessionEditorScreen(app: CoachApp, sessionId: Long, nav: Nav) {
                         b.items.forEachIndexed { idx, i ->
                             Row(Modifier.fillMaxWidth().clickable { editItem = i }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("${b.block.label}${if (b.items.size > 1) (idx + 1).toString() else ""}  ${i.exercise.name}", style = MaterialTheme.typography.bodyLarge)
+                                    Text((if (b.items.size > 1) "${b.block.label}${idx + 1}  " else "") + i.exercise.name, style = MaterialTheme.typography.titleMedium)
                                     Text(
                                         listOfNotNull(summariseSets(i.item.sets, settings.unit), i.item.restSec.takeIf { it > 0 }?.let { "rest ${Strength.fmtSeconds(it)}" }, i.item.notes.takeIf { it.isNotBlank() }).joinToString(" · "),
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

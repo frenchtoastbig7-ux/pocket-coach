@@ -65,7 +65,7 @@ enum class Tab(val label: String, val icon: Int) {
 @Composable
 fun AppRoot(app: CoachApp) {
     val settings by app.settings.state.collectAsStateWithLifecycle()
-    PocketCoachTheme(themeMode = settings.themeMode) {
+    PocketCoachTheme(themeMode = settings.themeMode, dynamic = settings.dynamicColor) {
         var tabIndex by rememberSaveable { mutableIntStateOf(0) }
         val stack = remember { mutableStateListOf<Route>() }
         val nav = remember { Nav(stack) }
