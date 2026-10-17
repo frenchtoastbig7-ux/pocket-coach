@@ -672,6 +672,48 @@ class Repo(context: Context, dbName: String = "coach.db") {
         )
     }
 
+    // ---------- Body weight ----------
+
+    fun bodyWeights(limit: Int = 400): Flow<List<BodyWeight>> = watch(T_BW) { d ->
+        d.query("bodyweight", null, null, null, null, null, "date DESC, id DESC", limit.toString()).mapAll(::bodyWeightOf)
+    }
+
+    private fun bodyWeightOf(c: Cursor) = BodyWeight(
+        id = c.getLong(c.getColumnIndexOrThrow("id")),
+        date = LocalDate.ofEpochDay(c.getLong(c.getColumnIndexOrThrow("date"))),
+        kg = c.getDouble(c.getColumnIndexOrThrow("kg")),
+        source = c.getString(c.getColumnIndexOrThrow("source")),
+        healthId = c.getString(c.getColumnIndexOrThrow("health_id")),
+        note = c.getString(c.getColumnIndexOrThrow("note")),
+    )
+
+    suspend fun logBodyWeight(kg: Double, date: LocalDate = LocalDate.now(), note: String = ""): Long = write(T_BW) { d ->
+        d.insertOrThrow("bodyweight", null, ContentValues().apply {
+            put("date", date.toEpochDay()); put("kg", kg); put("source", "app"); put("note", note); put("created_at", System.currentTimeMillis())
+        })
+    }
+
+    /** Adds readings from Health Connect that aren't here yet (matched by record id). Returns how many were new. */
+    suspend fun importBodyWeights(readings: List<Triple<String, LocalDate, Double>>): Int = write(T_BW) { d ->
+        var added = 0
+        for ((healthId, date, kg) in readings) {
+            val exists = d.rawQuery("SELECT 1 FROM bodyweight WHERE health_id=?", arrayOf(healthId)).use { it.moveToFirst() }
+            if (exists) continue
+            d.insertOrThrow("bodyweight", null, ContentValues().apply {
+                put("date", date.toEpochDay()); put("kg", kg); put("source", "health"); put("health_id", healthId); put("created_at", System.currentTimeMillis())
+            })
+            added++
+        }
+        added
+    }
+
+    /** Remembers the Health Connect record an app-logged weight was exported as, so an import doesn't duplicate it. */
+    suspend fun setBodyWeightHealthId(id: Long, healthId: String) = write(T_BW) { d ->
+        d.update("bodyweight", ContentValues().apply { put("health_id", healthId) }, "id=?", arrayOf(id.toString()))
+    }
+
+    suspend fun deleteBodyWeight(id: Long) = write(T_BW) { d -> d.delete("bodyweight", "id=?", arrayOf(id.toString())) }
+
     // ---------- Program files ----------
 
     suspend fun exportProgram(programId: Long): String? = read { d ->
@@ -717,6 +759,7 @@ class Repo(context: Context, dbName: String = "coach.db") {
         const val T_WE = "workout_exercises"
         const val T_SETS = "sets"
         const val T_MAX = "maxes"
+        const val T_BW = "bodyweight"
     }
 }
 

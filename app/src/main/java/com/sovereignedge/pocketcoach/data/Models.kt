@@ -187,3 +187,14 @@ data class SetRecord(
 )
 
 data class PersonalRecord(val exercise: Exercise, val bestLoad: Double?, val bestE1rm: Double?, val max: Max?, val sets: Int)
+
+/** A body-weight reading, in kilograms. [healthId] is set when it came from Health Connect. */
+data class BodyWeight(
+    val id: Long,
+    val date: LocalDate,
+    val kg: Double,
+    /** "app" or "health". */
+    val source: String,
+    val healthId: String?,
+    val note: String,
+)

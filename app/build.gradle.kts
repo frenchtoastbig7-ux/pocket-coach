@@ -15,8 +15,8 @@ android {
         applicationId = "com.sovereignedge.pocketcoach"
         minSdk = 31
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    // Health Connect: on-device store shared with Google Fit, Fitbit, Samsung Health; no network involved.
+    implementation("androidx.health.connect:connect-client:1.1.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")

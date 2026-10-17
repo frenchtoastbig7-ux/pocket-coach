@@ -84,6 +84,15 @@ fun AppRoot(app: CoachApp) {
         }
 
         // Edge-to-edge windows don't resize for the keyboard, so make room for it here (the nav bar inset is added by each Scaffold).
+        val rationale by app.showHealthRationale.collectAsStateWithLifecycle()
+        if (rationale) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { app.showHealthRationale.value = false },
+                title = { Text("Health Connect permissions") },
+                text = { Text("Pocket Coach reads body weight so readings from your scale or other apps show in your log, and writes the weights you log here and your finished workouts so other apps can see them. Nothing is sent off the phone; the app has no internet access. You can revoke this at any time in Health Connect.") },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { app.showHealthRationale.value = false }) { Text("OK") } },
+            )
+        }
         Surface(Modifier.windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))) {
             val top = stack.lastOrNull()
             if (top != null) {

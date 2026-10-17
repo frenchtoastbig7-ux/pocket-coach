@@ -25,7 +25,12 @@ Loads display in pounds or kilograms (Settings → Units; pounds by default on U
   a demo video button (your own link, or a web video search opened in the browser; the app itself stays offline).
   Tap an exercise during a workout to read it. Each also has a one-rep max you can enter or let the app estimate
   (Epley) from what you lift, an e1RM chart and a full set history.
-- **Progress** – totals, a 12-week tonnage / sets / days chart, records per exercise and the workout history.
+- **Progress** – body weight log with a 90-day trend, totals, a 12-week tonnage / sets / days chart, records per
+  exercise and the workout history.
+- **Health Connect** (optional) – switch it on in Settings and the app pulls body weight from Health Connect (so
+  readings from a smart scale, Google Fit, Fitbit or Samsung Health show up here) and writes the weights you log
+  plus every finished workout as an exercise session. Health Connect is on-device; the app still has no network
+  permission. Google Fit's own APIs were retired in 2025, so this is the supported route.
 - **Bring your own plan** – import a training plan from a spreadsheet: a `.csv` or `.xlsx` with one row per exercise
   (see the format below). Open the file from any app's share sheet, or Programs → import. The app can save a
   filled-in template to start from, and rows it can't read are skipped and counted rather than failing the import.
@@ -34,7 +39,8 @@ Loads display in pounds or kilograms (Settings → Units; pounds by default on U
   created on the other phone if missing.
 
 There is no account, no server and no analytics; the app has no network permission. Data is plain SQLite and is
-included in Android device backups.
+included in Android device backups. The only thing that leaves the app is what you choose to share through
+Health Connect, and that stays on the phone.
 
 ## Installing
 
@@ -129,12 +135,12 @@ app/src/main/java/com/sovereignedge/pocketcoach/
   ui/workout   Set logging, rest timer, finish + records
   ui/library   Exercise list, exercise detail (1RM, e1RM chart, history)
   ui/progress  Totals, weekly chart, records, history
-  ui/settings  Units, rounding, rest, theme, coach name
+  ui/settings  Units, rounding, rest, theme, coach name, Health Connect
+  health/      HealthSync: Health Connect read (weight) / write (weight, exercise sessions)
 ```
 
 ## Roadmap
 
-- Body-weight log and photos
 - Leaderboards and team feed over an optional self-hosted server (the data model already carries UUIDs for this)
 - Import TrainHeroic's own export once a sample of its layout is available
 

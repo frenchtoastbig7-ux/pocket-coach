@@ -47,6 +47,7 @@ fun ProgressScreen(app: CoachApp, modifier: Modifier, nav: Nav) {
     val weeks by app.repo.weeklyStats(12).collectAsStateWithLifecycle(emptyList())
     val records by app.repo.personalRecords().collectAsStateWithLifecycle(emptyList())
     val workouts by app.repo.workouts().collectAsStateWithLifecycle(emptyList())
+    val weights by app.repo.bodyWeights().collectAsStateWithLifecycle(emptyList())
     val settings by app.settings.state.collectAsStateWithLifecycle()
     var metric by rememberSaveable { mutableStateOf("tonnage") }
     val unit = settings.unit
@@ -56,11 +57,12 @@ fun ProgressScreen(app: CoachApp, modifier: Modifier, nav: Nav) {
         topBar = { TopAppBar(title = { Text("Progress") }, actions = { AppIconButton(R.drawable.ic_settings, "Settings") { nav.push(Route.Settings) } }) },
     ) { padding ->
         val t = totals
-        if (t != null && t.workouts == 0 && workouts.isEmpty()) {
-            EmptyState(R.drawable.ic_trending, "Nothing logged yet", "Finish a workout and your totals, weekly volume and records appear here.", Modifier.padding(padding))
-            return@Scaffold
-        }
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 32.dp)) {
+            item { BodyWeightCard(app, weights, unit, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) }
+            if (t != null && t.workouts == 0 && workouts.isEmpty()) {
+                item { Text("Finish a workout and your totals, weekly volume and records appear here.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                return@LazyColumn
+            }
             if (t != null) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

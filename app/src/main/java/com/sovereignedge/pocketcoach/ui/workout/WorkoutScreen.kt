@@ -130,7 +130,7 @@ fun WorkoutScreen(app: CoachApp, workoutId: Long, nav: Nav) {
                 navigationIcon = { AppIconButton(R.drawable.ic_arrow_back, "Back") { nav.pop() } },
                 actions = {
                     if (w != null && !w.finished) {
-                        Button(onClick = { scope.launch { records = app.repo.finishWorkout(workoutId) } }, modifier = Modifier.padding(end = 4.dp)) { Text("FINISH", style = MaterialTheme.typography.labelLarge) }
+                        Button(onClick = { scope.launch { records = app.repo.finishWorkout(workoutId); app.exportWorkoutIfEnabled(workoutId) } }, modifier = Modifier.padding(end = 4.dp)) { Text("FINISH", style = MaterialTheme.typography.labelLarge) }
                     }
                     AppIconButton(R.drawable.ic_more, "More") { menu = true }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

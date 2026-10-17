@@ -19,8 +19,18 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -103,6 +113,9 @@ fun SettingsScreen(app: CoachApp, onBack: () -> Unit) {
                 Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            SectionHeader("Health Connect")
+            HealthConnectSection(app, settings.healthSync)
+
             HorizontalDivider(Modifier.padding(top = 8.dp))
             SectionHeader("About")
             ListItem(headlineContent = { Text("Pocket Coach ${BuildConfig.VERSION_NAME}") }, supportingContent = { Text("Open source, Apache 2.0 · © 2026 Sovereign Edge Inc.") })
@@ -112,4 +125,41 @@ fun SettingsScreen(app: CoachApp, onBack: () -> Unit) {
             ListItem(headlineContent = { Text("Privacy") }, supportingContent = { Text("Everything stays on the phone. No account, no server, no analytics; the app has no network permission.") })
         }
     }
+}
+
+@Composable
+private fun HealthConnectSection(app: CoachApp, enabled: Boolean) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var granted by remember { mutableStateOf<Boolean?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val status = app.health.status
+    LaunchedEffect(Unit) { granted = app.health.hasPermissions() }
+    val requester = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { result ->
+        scope.launch {
+            granted = app.health.hasPermissions()
+            if (granted == true) {
+                app.settings.setHealthSync(true)
+                message = try { "Connected. Imported ${app.health.importWeights()} weight readings." } catch (e: Exception) { "Connected, but import failed: ${e.message}" }
+            } else message = "Permissions were not granted."
+        }
+    }
+    when (status) {
+        HealthConnectClient.SDK_AVAILABLE -> {
+            ListItem(
+                headlineContent = { Text("Sync with Health Connect") },
+                supportingContent = { Text("Body weight in from your scale or other apps; weights and finished workouts out to Google Fit, Fitbit, Samsung Health and friends. On-device only.") },
+                trailingContent = { Switch(enabled && granted == true, onCheckedChange = { on -> if (on) requester.launch(app.health.permissions) else app.settings.setHealthSync(false) }) },
+            )
+            if (enabled && granted == true) {
+                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { scope.launch { message = try { "Imported ${app.health.importWeights()} new weight readings." } catch (e: Exception) { "Import failed: ${e.message}" } } }) { Text("Import weights now") }
+                    TextButton(onClick = { runCatching { context.startActivity(android.content.Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)) } }) { Text("Manage") }
+                }
+            }
+        }
+        HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> ListItem(headlineContent = { Text("Health Connect needs an update") }, supportingContent = { Text("Update it from the Play Store, then come back here.") })
+        else -> ListItem(headlineContent = { Text("Health Connect isn't available on this phone") }, supportingContent = { Text("Body weight is still logged in the app.") })
+    }
+    message?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary) }
 }

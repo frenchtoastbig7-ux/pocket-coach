@@ -6,6 +6,8 @@ import android.provider.OpenableColumns
 import com.sovereignedge.pocketcoach.data.ProgramJson
 import com.sovereignedge.pocketcoach.data.Repo
 import com.sovereignedge.pocketcoach.data.SpreadsheetProgram
+import com.sovereignedge.pocketcoach.health.HealthSync
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +19,9 @@ import kotlinx.coroutines.withContext
 class CoachApp : Application() {
     lateinit var repo: Repo
     lateinit var settings: Settings
+    lateinit var health: HealthSync
+    /** Set when Health Connect asks the app to explain its permissions. */
+    val showHealthRationale = MutableStateFlow(false)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     /** Results of opening a plan file (JSON program, CSV or Excel): Ok(programId) or Err(message). */
@@ -32,6 +37,22 @@ class CoachApp : Application() {
         super.onCreate()
         repo = Repo(this)
         settings = Settings(this)
+        health = HealthSync(this, repo)
+    }
+
+    /** Mirrors a finished workout to Health Connect when the user has turned that on. Failures are silent. */
+    fun exportWorkoutIfEnabled(workoutId: Long) {
+        if (!settings.current.healthSync) return
+        scope.launch {
+            try {
+                repo.workout(workoutId).collect { d -> if (d != null) { health.exportWorkout(d) }; return@collect }
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun exportWeightIfEnabled(rowId: Long, kg: Double, date: java.time.LocalDate) {
+        if (!settings.current.healthSync) return
+        scope.launch { try { repo.setBodyWeightHealthId(rowId, health.exportWeight(kg, date)) } catch (_: Exception) { } }
     }
 
     /** Reads a shared plan file and imports it. The format is sniffed from the content, not the extension. */

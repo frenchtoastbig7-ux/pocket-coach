@@ -26,6 +26,8 @@ data class SettingsSnapshot(
     val barWeight: Double,
     /** Plates available (one value per pair), in the display unit, heaviest first. */
     val plates: List<Double>,
+    /** Mirror weights and finished workouts to Health Connect, and pull weights from it. */
+    val healthSync: Boolean,
 )
 
 /** Preferences, with a StateFlow so Compose screens recompose on change. */
@@ -46,6 +48,7 @@ class Settings(context: Context) {
     fun setIncrement(value: Double) = edit { putFloat(K_INCREMENT, value.toFloat()) }
     fun setThemeMode(value: String) = edit { putString(K_THEME, value) }
     fun setDynamicColor(value: Boolean) = edit { putBoolean(K_DYNAMIC, value) }
+    fun setHealthSync(value: Boolean) = edit { putBoolean(K_HEALTH, value) }
     fun setDefaultRest(value: Int) = edit { putInt(K_REST, value.coerceIn(0, 3600)) }
     fun setAthleteName(value: String) = edit { putString(K_NAME, value.trim()) }
     fun setKeepScreenOn(value: Boolean) = edit { putBoolean(K_SCREEN_ON, value) }
@@ -68,6 +71,7 @@ class Settings(context: Context) {
         athleteName = prefs.getString(K_NAME, "") ?: "",
         keepScreenOn = prefs.getBoolean(K_SCREEN_ON, true),
         restSound = prefs.getBoolean(K_REST_SOUND, true),
+        healthSync = prefs.getBoolean(K_HEALTH, false),
         barWeight = run {
             val unit = prefs.getString(K_UNIT, null) ?: defaultUnit()
             if (prefs.contains(K_BAR)) prefs.getFloat(K_BAR, 20f).toDouble() else Plates.defaultBar(unit)
@@ -85,6 +89,7 @@ class Settings(context: Context) {
         private const val K_INCREMENT = "increment"
         private const val K_THEME = "theme_mode"
         private const val K_DYNAMIC = "dynamic_color"
+        private const val K_HEALTH = "health_sync"
         private const val K_REST = "default_rest"
         private const val K_NAME = "athlete_name"
         private const val K_SCREEN_ON = "keep_screen_on"

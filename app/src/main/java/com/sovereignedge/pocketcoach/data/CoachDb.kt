@@ -138,6 +138,7 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
                 source TEXT NOT NULL DEFAULT 'entered')"""
         )
         db.execSQL("CREATE INDEX maxes_exercise ON maxes(exercise_id, date)")
+        createBodyWeight(db)
         seedExercises(db)
         seedSampleProgram(db)
     }
@@ -151,6 +152,21 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 4) createBodyWeight(db)
+    }
+
+    private fun createBodyWeight(db: SQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE bodyweight(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date INTEGER NOT NULL,
+                kg REAL NOT NULL,
+                source TEXT NOT NULL DEFAULT 'app',
+                health_id TEXT UNIQUE,
+                note TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL)"""
+        )
+        db.execSQL("CREATE INDEX bodyweight_date ON bodyweight(date)")
     }
 
     /** Inserts missing built-in exercises and gives any exercise without a description the guide text, if there is one. */
@@ -241,7 +257,7 @@ class CoachDb(context: Context, name: String = "coach.db") : SQLiteOpenHelper(co
     }
 
     companion object {
-        const val VERSION = 3
+        const val VERSION = 4
 
         private val W = LoadKind.WEIGHT
         private val B = LoadKind.BODYWEIGHT
