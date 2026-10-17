@@ -1,6 +1,8 @@
 package com.sovereignedge.pocketcoach.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +33,7 @@ import com.sovereignedge.pocketcoach.BuildConfig
 import com.sovereignedge.pocketcoach.CoachApp
 import com.sovereignedge.pocketcoach.R
 import com.sovereignedge.pocketcoach.Settings
+import com.sovereignedge.pocketcoach.data.Plates
 import com.sovereignedge.pocketcoach.data.Strength
 import com.sovereignedge.pocketcoach.ui.common.AppIconButton
 import com.sovereignedge.pocketcoach.ui.common.ChoiceField
@@ -57,6 +60,21 @@ fun SettingsScreen(app: CoachApp, onBack: () -> Unit) {
             val increments = if (settings.unit == "lb") listOf(1.0, 2.5, 5.0, 10.0) else listOf(0.5, 1.0, 2.5, 5.0)
             ChoiceField("Round prescribed loads to", settings.increment, increments.map { it to "${Strength.fmtNum(it)} ${settings.unit}" }, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { app.settings.setIncrement(it) }
             Text("Loads are stored in kilograms, so switching units later loses nothing.", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            SectionHeader("Barbell")
+            var barText by rememberSaveable(settings.unit) { mutableStateOf(Strength.fmtNum(settings.barWeight)) }
+            var platesText by rememberSaveable(settings.unit) { mutableStateOf(Plates.formatList(settings.plates)) }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = barText, onValueChange = { barText = it; it.replace(',', '.').toDoubleOrNull()?.takeIf { v -> v > 0 }?.let(app.settings::setBarWeight) },
+                    label = { Text("Bar (${settings.unit})") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = platesText, onValueChange = { platesText = it; Plates.parseList(it).takeIf { l -> l.isNotEmpty() }?.let(app.settings::setPlates) },
+                    label = { Text("Plates you have (${settings.unit})") }, singleLine = true, modifier = Modifier.weight(2f),
+                )
+            }
+            Text("Used by the plate calculator: tap a barbell set's target during a workout.", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             SectionHeader("Training")
             OutlinedTextField(

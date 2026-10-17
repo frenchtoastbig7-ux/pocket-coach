@@ -14,6 +14,9 @@ Material You. Everything lives on the phone.
   current 1RM, rounded to your plate step), load / reps / RPE inputs, a tick per set, a rest timer with a beep, and a
   finish summary. Each exercise shows what you did last time, and those numbers sit in the load and reps fields as
   placeholders, so ticking an untouched set logs the prescription, or failing that last time's numbers, as performed.
+- **Plate calculator** – tap the target of any barbell set to see the plates per side for that load, with the bar
+  weight and your plate set configurable in Settings. If the load isn't loadable exactly it shows the closest and
+  can log that instead.
 - **Library** – ~95 built-in exercises by category and equipment, plus your own, each with a how-to description and
   a demo video button (your own link, or a web video search opened in the browser; the app itself stays offline).
   Tap an exercise during a workout to read it. Each also has a one-rep max you can enter or let the app estimate
@@ -127,7 +130,7 @@ app/src/main/java/com/sovereignedge/pocketcoach/
 
 ## Roadmap
 
-- Plate calculator and warm-up set generator
+- Warm-up set generator
 - Body-weight log and photos
 - Leaderboards and team feed over an optional self-hosted server (the data model already carries UUIDs for this)
 - Import TrainHeroic's own export once a sample of its layout is available

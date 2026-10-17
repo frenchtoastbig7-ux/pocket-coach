@@ -1,6 +1,7 @@
 package com.sovereignedge.pocketcoach
 
 import android.content.Context
+import com.sovereignedge.pocketcoach.data.Plates
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -19,6 +20,10 @@ data class SettingsSnapshot(
     val keepScreenOn: Boolean,
     /** Sound at the end of the rest timer. */
     val restSound: Boolean,
+    /** Barbell weight for the plate calculator, in the display unit. */
+    val barWeight: Double,
+    /** Plates available (one value per pair), in the display unit, heaviest first. */
+    val plates: List<Double>,
 )
 
 /** Preferences, with a StateFlow so Compose screens recompose on change. */
@@ -32,7 +37,10 @@ class Settings(context: Context) {
     fun setUnit(value: String) = edit {
         putString(K_UNIT, value)
         putFloat(K_INCREMENT, if (value == "lb") 5f else 2.5f)
+        remove(K_BAR); remove(K_PLATES) // back to that unit's usual bar and plates
     }
+    fun setBarWeight(value: Double) = edit { putFloat(K_BAR, value.toFloat()) }
+    fun setPlates(value: List<Double>) = edit { putString(K_PLATES, Plates.formatList(value)) }
     fun setIncrement(value: Double) = edit { putFloat(K_INCREMENT, value.toFloat()) }
     fun setThemeMode(value: String) = edit { putString(K_THEME, value) }
     fun setDefaultRest(value: Int) = edit { putInt(K_REST, value.coerceIn(0, 3600)) }
@@ -53,6 +61,14 @@ class Settings(context: Context) {
         athleteName = prefs.getString(K_NAME, "") ?: "",
         keepScreenOn = prefs.getBoolean(K_SCREEN_ON, true),
         restSound = prefs.getBoolean(K_REST_SOUND, true),
+        barWeight = run {
+            val unit = prefs.getString(K_UNIT, "kg") ?: "kg"
+            if (prefs.contains(K_BAR)) prefs.getFloat(K_BAR, 20f).toDouble() else Plates.defaultBar(unit)
+        },
+        plates = run {
+            val unit = prefs.getString(K_UNIT, "kg") ?: "kg"
+            prefs.getString(K_PLATES, null)?.let(Plates::parseList)?.takeIf { it.isNotEmpty() } ?: Plates.defaultPlates(unit)
+        },
     )
 
     companion object {
@@ -65,5 +81,7 @@ class Settings(context: Context) {
         private const val K_NAME = "athlete_name"
         private const val K_SCREEN_ON = "keep_screen_on"
         private const val K_REST_SOUND = "rest_sound"
+        private const val K_BAR = "bar_weight"
+        private const val K_PLATES = "plates"
     }
 }

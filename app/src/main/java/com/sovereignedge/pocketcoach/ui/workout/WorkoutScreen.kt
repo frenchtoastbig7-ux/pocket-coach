@@ -70,6 +70,7 @@ import com.sovereignedge.pocketcoach.ui.library.describeSet
 import com.sovereignedge.pocketcoach.ui.library.effectiveKind
 import com.sovereignedge.pocketcoach.ui.common.ExerciseEditorDialog
 import com.sovereignedge.pocketcoach.ui.common.ExerciseHowToSheet
+import com.sovereignedge.pocketcoach.ui.common.PlateCalculatorSheet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -232,6 +233,11 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
     var editRest by remember { mutableStateOf(false) }
     var howTo by remember { mutableStateOf(false) }
     var editExercise by remember { mutableStateOf(false) }
+    // Kilogram load to open the plate calculator with; null = closed.
+    var plateLoad by remember { mutableStateOf<Double?>(null) }
+    var plateOpen by remember { mutableStateOf(false) }
+    var plateSetId by remember { mutableStateOf<Long?>(null) }
+    val barbell = ex.exercise.equipment == "Barbell" || ex.exercise.equipment == "Trap bar"
     // The exercise's default shape, unless its sets say otherwise (a timed row of a distance exercise).
     val kind = ex.sets.firstOrNull()?.let { effectiveKind(it, ex.exercise.loadKind) } ?: ex.exercise.loadKind
     val last by remember(ex.exercise.id, ex.entry.workoutId) { app.repo.lastPerformance(ex.exercise.id, ex.entry.workoutId) }.collectAsStateWithLifecycle(null)
@@ -255,6 +261,11 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                 AppIconButton(R.drawable.ic_more, "Exercise actions") { menu = true }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text("How to & demo") }, onClick = { menu = false; howTo = true })
+                    DropdownMenuItem(text = { Text("Plate calculator") }, onClick = {
+                        menu = false; plateSetId = null
+                        plateLoad = ex.sets.firstOrNull { !it.completed }?.let { it.load ?: it.targetLoad } ?: ex.sets.firstOrNull()?.let { it.load ?: it.targetLoad }
+                        plateOpen = true
+                    })
                     DropdownMenuItem(text = { Text("Notes") }, onClick = { menu = false; editNotes = true })
                     DropdownMenuItem(text = { Text("Rest time") }, onClick = { menu = false; editRest = true })
                     DropdownMenuItem(text = { Text("Exercise history") }, onClick = { menu = false; onOpenExercise() })
@@ -280,6 +291,7 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
                 val suggestion = lastSets.getOrNull(s.index)?.takeIf { it.load != null || rowKind != LoadKind.WEIGHT }
                     ?: lastSets.lastOrNull { it.load != null } ?: lastSets.lastOrNull()
                 SetRow(s, rowKind, unit, readOnly, suggestion,
+                    onPlates = if (barbell && rowKind == LoadKind.WEIGHT) ({ plateSetId = s.id; plateLoad = s.load ?: s.targetLoad ?: suggestion?.load; plateOpen = true }) else null,
                     onUpdate = { scope.launch { app.repo.updateSet(it) } },
                     onCompleted = { if (ex.entry.restSec > 0) onRest(ex.entry.restSec) },
                     onDelete = { scope.launch { app.repo.deleteSet(s.id) } })
@@ -288,6 +300,11 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
         }
     }
     if (howTo) ExerciseHowToSheet(ex.exercise, onDismiss = { howTo = false }, onHistory = onOpenExercise, onEdit = { editExercise = true })
+    if (plateOpen) {
+        val target = plateSetId?.let { id -> ex.sets.firstOrNull { it.id == id } }
+        PlateCalculatorSheet(app.settings, plateLoad, onDismiss = { plateOpen = false },
+            onUseLoad = if (target != null && !readOnly) ({ kg -> scope.launch { app.repo.updateSet(target.copy(load = kg)) } }) else null)
+    }
     if (editExercise) {
         ExerciseEditorDialog(initial = ex.exercise, onDismiss = { editExercise = false }) { name, cat, eq, k, notes, description, video ->
             scope.launch { app.repo.updateExercise(ex.exercise.copy(name = name, category = cat, equipment = eq, loadKind = k, notes = notes, description = description, videoUrl = video)) }
@@ -301,7 +318,7 @@ private fun ExerciseCard(app: CoachApp, ex: WorkoutExerciseDetail, unit: String,
 
 /** One logged set: target on the left, editable load / reps (or time / distance) / RPE, and a done checkbox. */
 @Composable
-private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolean, suggestion: WorkoutSet?, onUpdate: (WorkoutSet) -> Unit, onCompleted: () -> Unit, onDelete: () -> Unit) {
+private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolean, suggestion: WorkoutSet?, onPlates: (() -> Unit)?, onUpdate: (WorkoutSet) -> Unit, onCompleted: () -> Unit, onDelete: () -> Unit) {
     var loadText by remember(s.id) { mutableStateOf(Strength.fmtLoad(s.load, unit)) }
     var primaryText by remember(s.id) { mutableStateOf(primaryOf(s, kind)) }
     var rpeText by remember(s.id) { mutableStateOf(s.rpe?.let(Strength::fmtNum) ?: "") }
@@ -326,7 +343,11 @@ private fun SetRow(s: WorkoutSet, kind: LoadKind, unit: String, readOnly: Boolea
     val bg = if (s.completed) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f) else androidx.compose.ui.graphics.Color.Transparent
     Row(Modifier.fillMaxWidth().background(bg).padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("${s.index + 1}", Modifier.width(32.dp))
-        Text(target.ifBlank { "—" }, Modifier.weight(1.2f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            target.ifBlank { "—" }, Modifier.weight(1.2f).let { m -> if (onPlates != null) m.clickable(onClick = onPlates) else m },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (onPlates != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         // What a tick would log: typed value, else the prescription, else last time.
         val fillLoad = s.targetLoad ?: suggestion?.load
         val fillPrimary: Any? = when (kind) {
